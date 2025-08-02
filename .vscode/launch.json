@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "現在のファイル",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "python": "/home/yuta-harimoto/.home_env/bin/python",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}", 
+            // "env": {
+            // }
+        },
+        {
+            "name": "main_window.py デバッグ",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main_window.py",  
+            "python": "/home/yuta-harimoto/.home_env/bin/python",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}", 
+            // "env": {
+            // }
+        }
+    ]
+}

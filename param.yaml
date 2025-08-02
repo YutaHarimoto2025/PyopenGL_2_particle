@@ -1,0 +1,15 @@
+save_dir: "result" #result_local
+movie:
+  is_saving: true
+  filename: "out.mp4"
+  fps: 30
+  total_sec: 10
+
+seed: 42
+
+shader:
+  vert: Shader/rectangular.vert # 頂点シェーダパス
+  frag: Shader/rectangular.frag # フラグメントシェーダパス
+
+window_width: 1000
+window_height: 1000

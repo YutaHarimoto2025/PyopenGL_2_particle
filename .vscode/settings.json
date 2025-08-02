@@ -1,0 +1,78 @@
+{
+    "workbench.colorCustomizations": {
+        "activityBar.background": "#32381f",
+        "activityBar.foreground": "#dbffe5",
+        "activityBarBadge.background": "#4caf50",
+        "activityBarBadge.foreground": "#ffffff",
+        "sideBar.background": "#122d20",
+        "sideBar.foreground": "#ccefdc",
+        "sideBarTitle.foreground": "#dbffe5",
+        "sideBarSectionHeader.background": "#2e5c46",
+        "sideBarSectionHeader.foreground": "#dbffe5",
+        "titleBar.activeBackground": "#1f4336",
+        "titleBar.activeForeground": "#e1ffef",
+        "statusBar.background": "#348363",
+        "statusBar.foreground": "#d4fce8",
+        "editor.background": "#10261b",
+        "editorLineNumber.foreground": "#9ecbb5",
+        "editorCursor.foreground": "#66ffcc",
+        "editorWhitespace.foreground": "#285644",
+        "tab.activeBackground": "#1f4330",
+        "tab.activeForeground": "#dbffe5",
+        "tab.inactiveBackground": "#153324",
+        "tab.inactiveForeground": "#a0cbb6",
+        "tab.hoverBackground": "#367857",
+        "tab.border": "#134b33",
+        "tab.activeBorder": "#4caf50",
+        "panel.background": "#10261b",
+        "panel.border": "#2e5c46",
+        "panelTitle.activeForeground": "#dbffe5",
+        "panelTitle.inactiveForeground": "#a0cbb6",
+        "panelTitle.activeBorder": "#66ffcc",
+        "scrollbarSlider.background": "#3e7053",
+        "scrollbarSlider.hoverBackground": "#5b9d74",
+        "scrollbarSlider.activeBackground": "#7bd3a2",
+        "scrollbar.shadow": "#000000",
+        "minimap.background": "#10261b",
+        "minimapSlider.background": "#66ffcc",
+        "minimapSlider.hoverBackground": "#99ffe0",
+        "minimapSlider.activeBackground": "#b8ffec"
+    },
+    "python.analysis.typeCheckingMode": "off",
+    "python.pythonPath": "/home/yuta-harimoto/.home_env/bin/python",
+    "terminal.integrated.profiles.linux": {
+        "customEnv": {
+            "path": "/bin/bash",
+            "args": [
+                "-c",
+                "source /home/yuta-harimoto/.home_env/bin/activate && exec bash"
+            ]
+        }
+    },
+    "python.analysis.disabled": [
+        "reportUndefinedVariable"
+    ],
+    "python.analysis.enabled": false,
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none",
+        "reportMissingTypeStubs": "none"
+    },
+    "terminal.integrated.defaultProfile.linux": "customEnv",
+    // ------------------ Editor behavior ------------------
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 2000,
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "reportUndefinedVariable": false,
+    "color-highlight.customVariables": [
+        "background",
+        "grid_color",
+        "cube_color",
+        "checker_color1",
+        "checker_color2"
+    ],
+    // "python.poetryPath": "/home/yuta-harimoto/.home_env/bin/python",
+    // "python.analysis.indexing": true,
+    // "python.analysis.autoImportCompletions": true,
+    // "python.languageServer": "Pylance"
+}
