@@ -55,9 +55,9 @@ class Object3D:
 
     def update(self, t: float) -> None:
         """
-        例: 30度/秒でY軸回転
+        例: 60度/秒でY軸回転
         """
-        angle = glm.radians(t * 30)
+        angle = glm.radians(t * 60)
         self.rotation = glm.angleAxis(angle, glm.vec3(0, 1, 0))
         if self.is_rotate:
             self.model_mat = (

@@ -7,6 +7,7 @@ from OpenGL import GL
 import glm
 from typing import List, Optional
 from pathlib import Path
+import time
 
 from tools import xp, np, load_shader, create_periodic_timer, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
 from create_obj import Object3D, create_boxes, create_axes  # オブジェクト生成はここに分離
@@ -67,6 +68,9 @@ class GLWidget(QOpenGLWidget):
         self.ffmpeg = MovieFFmpeg(self.width(), self.height())
         if self.is_saving:
             self.resizeGL(self.width(), self.height())  # 初期化
+            
+        self.start_time = time.perf_counter()  # 描画開始時刻
+        self.previous_time = self.start_time
 
     def resizeGL(self, w: int, h: int) -> None:
         """
@@ -97,9 +101,10 @@ class GLWidget(QOpenGLWidget):
         GL.glUniformMatrix4fv(uViewLoc, 1, False, glm.value_ptr(view))
         GL.glUniformMatrix4fv(uProjLoc, 1, False, glm.value_ptr(proj))
 
-        t = self.frameCount / param.movie.fps  # 経過時間 [秒]
-        # t = 1
-
+        current_time = time.perf_counter()
+        t = current_time - self.start_time  # 経過時間 [秒]
+        dt_frame = current_time - self.previous_time  # 前フレームからの経過時間 [秒]
+        
         # --- オブジェクトの描画 ---
         for obj in self.objects:
             obj.update(t)
@@ -126,6 +131,7 @@ class GLWidget(QOpenGLWidget):
             self.ffmpeg.step(self.frameCount)
         
         self.frameCount += 1
+        self.previous_time = current_time
         # self.update() #垂直同期切ったままこれ使うとfps500くらいになるので注意
         
     def FpsTimer(self):
