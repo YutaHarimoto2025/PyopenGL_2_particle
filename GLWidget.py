@@ -2,15 +2,15 @@
 
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtGui import QPainter, QFont, QPen, QColor, QPainterPath
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from OpenGL import GL
 import glm
-import ffmpeg
 from typing import List, Optional
 from pathlib import Path
 
-from tools import xp, np, load_shader, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
+from tools import xp, np, load_shader, create_periodic_timer, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
 from create_obj import Object3D, create_boxes, create_axes  # オブジェクト生成はここに分離
+from movie_ffepeg import MovieFFmpeg
 
 class GLWidget(QOpenGLWidget):
     """
@@ -19,16 +19,21 @@ class GLWidget(QOpenGLWidget):
     Object3D定義・生成はcreate_obj.pyへ分離。
     ハイパーパラメータはparam.yaml/tools経由で一元管理。
     """
-
+    fpsUpdated = pyqtSignal(int) #クラス変数として定義
+    
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.objects: List[Object3D] = []        # 描画対象オブジェクトリスト
-        self.frameCount: int = 0                 # 現在のフレーム数
         self.is_saving: bool = False             # 動画保存フラグ
         self.total_frame: int = 0                # 保存する総フレーム数
-        self.ffmpeg_proc: Optional[ffmpeg._run.AsyncProcess] = None  # ffmpegプロセス
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
-        self.prog: Optional[int] = None          # OpenGLプログラムID
+        self.show_labels: bool = True  # ラベル表示フラグ
+        self.radius: float = 1.0  # 半径（スライダーで調整，未使用）
+        
+        self.previous_frameCount:int = 0
+        self.record_fps_timer = create_periodic_timer(self, self.FpsTimer, 1000)
+        
+        self.ctrl_fps_timer = create_periodic_timer(self, self.update, max(5, 1000//int(param_changable["fps"])))
 
     def initializeGL(self) -> None:
         """
@@ -56,22 +61,12 @@ class GLWidget(QOpenGLWidget):
 
         GL.glEnable(GL.GL_DEPTH_TEST)
 
-        # --- 動画保存(ffmpeg)準備 ---
-        self.frameCount = 0
-        self.total_frame = int(param.movie.fps * param.movie.total_sec)
+        # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.movie.is_saving)
-        movie_filepath = str(working_dir / param.save_dir / param.movie.filename)
+        self.frameCount = 0
+        self.ffmpeg = MovieFFmpeg(self.width(), self.height())
         if self.is_saving:
-            print("動画保存開始：ウィンドウサイズを変更しないでください")
-            self.ffmpeg_proc = (
-                ffmpeg
-                .input('pipe:', format='rawvideo', pix_fmt='rgb24',
-                       s=f"{self.width()}x{self.height()}",
-                       framerate=param.movie.fps)
-                .output(movie_filepath, pix_fmt='yuv420p', vcodec='libx264')
-                .overwrite_output()
-                .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True)
-            )
+            self.resizeGL(self.width(), self.height())  # 初期化
 
     def resizeGL(self, w: int, h: int) -> None:
         """
@@ -89,8 +84,8 @@ class GLWidget(QOpenGLWidget):
         GL.glClearColor(*param_changable["bg_color"]) #背景色
 
         # --- ビュー・プロジェクション行列の生成 ---
-        view = glm.lookAt(glm.vec3(2,2,2), glm.vec3(0,0,0), glm.vec3(0,0,1))
-        proj = glm.perspective(glm.radians(45.0), self.aspect, 0.1, 10.0)
+        view = glm.lookAt(glm.vec3(2,-2,2), glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
+        proj = glm.perspective(glm.radians(param_changable["fov"]), self.aspect, 0.01, 100.0) #視野角， アスペクト比，近接面，遠方面
 
         # --- uniformロケーション取得 ---
         uModelLoc = GL.glGetUniformLocation(self.prog, "uModel")
@@ -103,6 +98,7 @@ class GLWidget(QOpenGLWidget):
         GL.glUniformMatrix4fv(uProjLoc, 1, False, glm.value_ptr(proj))
 
         t = self.frameCount / param.movie.fps  # 経過時間 [秒]
+        # t = 1
 
         # --- オブジェクトの描画 ---
         for obj in self.objects:
@@ -110,32 +106,30 @@ class GLWidget(QOpenGLWidget):
             obj.draw(self.prog, uModelLoc, uColorLoc, xp=xp, np=np)  # CuPy/NumPy両対応
 
         # --- QPainterでラベル描画 ---
-        painter = QPainter(self)
-        font = QFont("sans-serif", 16, QFont.Weight.Bold)
-        painter.setFont(font)
-        for obj in self.objects:
-            pos = obj.localframe_to_window(view, proj, (self.width(), self.height()))
-            r, g, b = [int(c*255) for c in obj.color]
-            path = QPainterPath()
-            path.addText(pos[0], pos[1], painter.font(), obj.name)
-            painter.setPen(QPen(Qt.GlobalColor.white, 1.5))
-            painter.drawPath(path)
-            painter.setPen(QPen(QColor(r,g,b), 0.6))
-            painter.fillPath(path, QColor(r,g,b))
-        painter.end()
+        if self.show_labels:
+            painter = QPainter(self)
+            font = QFont("sans-serif", 16, QFont.Weight.Bold)
+            painter.setFont(font)
+            for obj in self.objects:
+                pos = obj.localframe_to_window(view, proj, (self.width(), self.height()))
+                r, g, b = [int(c*255) for c in obj.color]
+                path = QPainterPath()
+                path.addText(pos[0], pos[1], painter.font(), obj.name)
+                painter.setPen(QPen(Qt.GlobalColor.white, 1.5))
+                painter.drawPath(path)
+                painter.setPen(QPen(QColor(r,g,b), 0.6))
+                painter.fillPath(path, QColor(r,g,b))
+            painter.end()
 
         # --- フレームカウント管理・動画保存処理 ---
-        self.frameCount += 1
         if self.is_saving:
-            if self.frameCount < self.total_frame:
-                # CuPyの場合はasnumpyでCPUメモリへ変換
-                data = GL.glReadPixels(0, 0, self.width(), self.height(), GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
-                image = np.frombuffer(data, dtype=np.uint8).reshape((self.height(), self.width(), 4))
-                image = np.flip(image, axis=0)[..., :3]  # 上下反転 & RGB
-                image = np.ascontiguousarray(image, dtype=np.uint8)
-                self.ffmpeg_proc.stdin.write(image.tobytes())
-            if self.frameCount == self.total_frame:
-                self.ffmpeg_proc.stdin.close()
-                self.ffmpeg_proc.wait()
-                print("動画保存完了！ ウィンドウサイズ変更OKです")
-        self.update()
+            self.ffmpeg.step(self.frameCount)
+        
+        self.frameCount += 1
+        # self.update() #垂直同期切ったままこれ使うとfps500くらいになるので注意
+        
+    def FpsTimer(self):
+        # 1秒ごとの増分を計算
+        fps = self.frameCount - self.previous_frameCount
+        self.previous_frameCount = self.frameCount
+        self.fpsUpdated.emit(fps) #シグナルをmain windowに送信

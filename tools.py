@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 from omegaconf import OmegaConf
+from PyQt6.QtCore import QTimer, pyqtSignal
 import numpy as np
 import git
 
@@ -18,6 +19,12 @@ def load_shader(filename: str) -> str:
         code = f.read()
     code = "\n".join([l for l in code.splitlines() if not l.strip().startswith("precision")])
     return code
+
+def create_periodic_timer(parent, slot, interval_ms):
+    timer = QTimer(parent)
+    timer.timeout.connect(slot)
+    timer.start(interval_ms)
+    return timer
 
 # --- NumPy / CuPy自動切替 ---
 try:
@@ -94,7 +101,7 @@ with open(PARAM_JSON, 'r', encoding='utf-8') as f:
 
 def update_param_changable():
     """param_changableの内容をparam.jsonで上書き反映（なければ何もしない）"""
-    print("updating param_changable from JSON")
+    # print("updating param_changable from JSON")
     with open(PARAM_JSON, 'r', encoding='utf-8') as f:
         param_changable.clear()
         param_changable.update(json.load(f))

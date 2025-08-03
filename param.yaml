@@ -1,6 +1,6 @@
 save_dir: "result" #result_local
 movie:
-  is_saving: true
+  is_saving: false
   filename: "out.mp4"
   fps: 30
   total_sec: 10
