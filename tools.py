@@ -8,6 +8,7 @@ from omegaconf import OmegaConf
 from PyQt6.QtCore import QTimer, pyqtSignal
 import numpy as np
 import git
+from datetime import datetime
 
 
 # --- GLSLシェーダ読込 ---
@@ -25,6 +26,13 @@ def create_periodic_timer(parent, slot, interval_ms):
     timer.timeout.connect(slot)
     timer.start(interval_ms)
     return timer
+
+def make_datetime_file(prefix: str, domain) -> str:
+    now = datetime.now()
+    fname = f"{prefix}_{now.strftime('%Y%m%d_%H%M%S')}.{domain}"
+    filepath  = working_dir / param.save_dir /fname
+    filepath.parent.mkdir(parents=True, exist_ok=True) #ディレクトリ作成
+    return str(filepath)
 
 # --- NumPy / CuPy自動切替 ---
 try:

@@ -19,9 +19,9 @@ class Object3D:
         color: Tuple[float, float, float],
         posi: Tuple[float, float, float] = (0, 0, 0), # 世界座標
         rot: glm.quat|None = None,
-        scale: Tuple[float, float, float] = (1, 1, 1),
+        scale: Tuple[float, float, float] = (1, 1, 1), # ローカル座標軸に沿って
         name_posi_local: Tuple[float, float, float] = (0, 0, 0), #ローカル座標
-        is_rotate: bool = True,
+        is_move: bool = True,
         name: str = "",
     ) -> None:
         # --- CuPy/NumPy配列型で受け取りfloat32/uint32で型変換 ---
@@ -34,8 +34,7 @@ class Object3D:
         self.position = glm.vec3(*posi)
         self.rotation = rot if rot is not None else glm.quat()
         self.scale = glm.vec3(*scale)
-        self.model_mat = glm.mat4(1)
-        self.is_rotate = is_rotate  # 回転するかどうか
+        self.is_move = is_move  # 動くかどうか
 
         self.vao = GL.glGenVertexArrays(1)
         self.vbo = GL.glGenBuffers(1)
@@ -52,19 +51,30 @@ class Object3D:
         GL.glEnableVertexAttribArray(0) # 位置ベクトルを有効化
         GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, False, 0, None)
         GL.glBindVertexArray(0)
+        
+        # 初期のモデル行列　動かないものはこれを使いまわす
+        self.model_mat = glm.mat4(1)
+        self.update_model_matrix()  # 初期化時にモデル行列を計算
 
-    def update(self, t: float) -> None:
-        """
-        例: 60度/秒でY軸回転
-        """
-        angle = glm.radians(t * 60)
-        self.rotation = glm.angleAxis(angle, glm.vec3(0, 1, 0))
-        if self.is_rotate:
+    def update_posi_rot(self, dt: float) -> None:
+        if not self.is_move:
+            return
+        else:
+            # self.position += glm.vec3(0, 0, dt * 0.1)  # Z軸方向に移動
+            
+            d_angle = glm.radians(dt * 60)
+            dq = glm.angleAxis(d_angle, glm.vec3(0, 1, 0)) # 回転軸はY軸
+            self.rotation = dq * self.rotation  # クォータニオンの積で回転　演算は非可換
+    
+    def update_model_matrix(self) -> None:
+        if not self.is_move:
+            return
+        else:
             self.model_mat = (
-                glm.translate(glm.mat4(1), self.position)
-                * glm.mat4_cast(self.rotation)
-                * glm.scale(glm.mat4(1), self.scale)
-            )
+                    glm.translate(glm.mat4(1), self.position)
+                    * glm.mat4_cast(self.rotation)
+                    * glm.scale(glm.mat4(1), self.scale)
+                )
 
     def draw(self, prog: int, uModelLoc: int, uColorLoc: int, xp=xp, np=np) -> None:
         """
@@ -147,7 +157,7 @@ def create_axes() -> list:
             color = (1, 0, 0),
             name = "X",
             name_posi_local = (1.2,0,0),
-            is_rotate = False
+            is_move = False
         ),
         Object3D(
             vertices = npFloat([[0, 0, 0], [0, 1, 0]]),
@@ -156,7 +166,7 @@ def create_axes() -> list:
             color = (0, 1, 0),
             name = "Y",
             name_posi_local = (0,1.2,0),
-            is_rotate = False
+            is_move = False
         ),
         Object3D(
             vertices = npFloat([[0, 0, 0], [0, 0, 1]]),
@@ -165,7 +175,7 @@ def create_axes() -> list:
             color = (0, 0, 1),
             name = "Z",
             name_posi_local = (0,0,1.2),
-            is_rotate = False
+            is_move = False
         ),
     ]
     return axes

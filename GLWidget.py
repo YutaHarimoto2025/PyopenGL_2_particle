@@ -12,6 +12,7 @@ import time
 from tools import xp, np, load_shader, create_periodic_timer, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
 from create_obj import Object3D, create_boxes, create_axes  # オブジェクト生成はここに分離
 from movie_ffepeg import MovieFFmpeg
+from physics import Physics  # 物理シミュレーションデータ
 
 class GLWidget(QOpenGLWidget):
     """
@@ -24,7 +25,6 @@ class GLWidget(QOpenGLWidget):
     
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.objects: List[Object3D] = []        # 描画対象オブジェクトリスト
         self.is_saving: bool = False             # 動画保存フラグ
         self.total_frame: int = 0                # 保存する総フレーム数
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
@@ -32,9 +32,6 @@ class GLWidget(QOpenGLWidget):
         self.radius: float = 1.0  # 半径（スライダーで調整，未使用）
         
         self.previous_frameCount:int = 0
-        self.record_fps_timer = create_periodic_timer(self, self.FpsTimer, 1000)
-        
-        self.ctrl_fps_timer = create_periodic_timer(self, self.update, max(5, 1000//int(param_changable["fps"])))
 
     def initializeGL(self) -> None:
         """
@@ -55,13 +52,11 @@ class GLWidget(QOpenGLWidget):
         if not GL.glGetProgramiv(self.prog, GL.GL_LINK_STATUS):
             raise RuntimeError(GL.glGetProgramInfoLog(self.prog).decode())
 
-        # --- 3Dオブジェクト生成は create_obj.pyで ---
-        self.box = create_boxes()
-        self.axes = create_axes()
-        self.objects = self.box + self.axes
-
         GL.glEnable(GL.GL_DEPTH_TEST)
 
+        self.phys = Physics()  # 物理シミュレーションデータ
+        self.phys.start_stepping()  # シミュレーションスレッド開始
+        
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.movie.is_saving)
         self.frameCount = 0
@@ -71,6 +66,8 @@ class GLWidget(QOpenGLWidget):
             
         self.start_time = time.perf_counter()  # 描画開始時刻
         self.previous_time = self.start_time
+        self.record_fps_timer = create_periodic_timer(self, self.FpsTimer, 1000)
+        self.ctrl_fps_timer = create_periodic_timer(self, self.update, max(5, 1000//int(param_changable["fps"])))
 
     def resizeGL(self, w: int, h: int) -> None:
         """
@@ -104,10 +101,10 @@ class GLWidget(QOpenGLWidget):
         current_time = time.perf_counter()
         t = current_time - self.start_time  # 経過時間 [秒]
         dt_frame = current_time - self.previous_time  # 前フレームからの経過時間 [秒]
+        self.phys.update_objects(t, dt_frame)  # 物理シミュレーションの更新
         
         # --- オブジェクトの描画 ---
-        for obj in self.objects:
-            obj.update(t)
+        for obj in self.phys.objects:
             obj.draw(self.prog, uModelLoc, uColorLoc, xp=xp, np=np)  # CuPy/NumPy両対応
 
         # --- QPainterでラベル描画 ---
@@ -115,7 +112,7 @@ class GLWidget(QOpenGLWidget):
             painter = QPainter(self)
             font = QFont("sans-serif", 16, QFont.Weight.Bold)
             painter.setFont(font)
-            for obj in self.objects:
+            for obj in self.phys.objects:
                 pos = obj.localframe_to_window(view, proj, (self.width(), self.height()))
                 r, g, b = [int(c*255) for c in obj.color]
                 path = QPainterPath()

@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
         """
         すべてのオブジェクトを削除し、UIもリセット。
         """
-        self.gl.objects.clear()
+        self.gl.phys.objects.clear()
         self.gl.update()
         self.list_widget.clear()
         self.status.showMessage("すべてのオブジェクトを削除しました")
@@ -115,7 +115,7 @@ class MainWindow(QMainWindow):
         """
         self.status.showMessage(f"クリック位置: ({x:.2f}, {y:.2f}) | オブジェクト数: {count}")
         self.list_widget.clear()
-        for i, obj in enumerate(self.gl.objects, start=1):
+        for i, obj in enumerate(self.gl.phys.objects, start=1):
             self.list_widget.addItem(f"{i}: ({obj.x:.2f}, {obj.y:.2f}) r={obj.r:.2f} '{obj.label}'")
             
     def _toggle_labels(self, checked: bool) -> None:
