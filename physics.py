@@ -7,13 +7,16 @@ import glm
 import json
 
 from tools import working_dir, param, param_changable, make_datetime_file, xp, np
-from create_obj import Object3D, create_boxes, create_axes
+from create_obj import create_boxes, create_axes, create_balls
+from object3d import Object3D
 
 class Physics:
-    def __init__(self):
-        self.box = create_boxes()
+    def __init__(self, is_saving):
+        self.is_saving: bool = is_saving
         self.axes = create_axes()
-        self.objects: List[Object3D] = self.box + self.axes
+        self.box = create_boxes(scale=(1, 1, 1))
+        self.balls = create_balls(num=10, radius=0.1)
+        self.objects: List[Object3D] = self.box + self.axes + self.balls
         self.objects_state_buffer: List[List[dict]] = []
         self.dt_sim = 0.001
         self.t_sim = 0.0
@@ -25,8 +28,9 @@ class Physics:
         self._onestep_thread = None
         
         #保存用jsonlファイル
-        self.savefile_path = make_datetime_file(prefix="objectsLOG", domain="jsonl")
-        open(self.savefile_path, "w", encoding="utf-8").close()
+        if self.is_saving:
+            self.savefile_path = make_datetime_file(prefix="objectsLOG", domain="jsonl")
+            open(self.savefile_path, "w", encoding="utf-8").close()
 
     def save_current_state(self):
         """ 現在のobjectsの状態をバッファに記録 """
@@ -88,7 +92,8 @@ class Physics:
         self.start_stepping()   
         
         # JSONLに一行追記
-        self.append_jsonl_state(interp_state, buffer_usage_ratio)
+        if self.is_saving:
+            self.append_jsonl_state(interp_state, buffer_usage_ratio)
         
     def get_interp_state(self, dt_frame: float) -> List[dict]:
         buff_len = len(self.objects_state_buffer)

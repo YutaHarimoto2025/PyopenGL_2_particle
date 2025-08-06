@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         # ラベル表示トグル
         label_toggle = QAction("ラベル表示", self)
         label_toggle.setCheckable(True)
-        label_toggle.setChecked(True)
+        label_toggle.setChecked(False)
         label_toggle.triggered.connect(self._toggle_labels)
         tb.addAction(label_toggle)
 

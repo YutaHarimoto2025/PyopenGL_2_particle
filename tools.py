@@ -29,7 +29,7 @@ def create_periodic_timer(parent, slot, interval_ms):
 
 def make_datetime_file(prefix: str, domain) -> str:
     now = datetime.now()
-    fname = f"{prefix}_{now.strftime('%Y%m%d_%H%M%S')}.{domain}"
+    fname = f"{now.strftime('%Y%m%d_%H%M%S')}_{prefix}.{domain}"
     filepath  = working_dir / param.save_dir /fname
     filepath.parent.mkdir(parents=True, exist_ok=True) #ディレクトリ作成
     return str(filepath)

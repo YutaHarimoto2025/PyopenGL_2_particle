@@ -10,7 +10,8 @@ from pathlib import Path
 import time
 
 from tools import xp, np, load_shader, create_periodic_timer, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
-from create_obj import Object3D, create_boxes, create_axes  # オブジェクト生成はここに分離
+from create_obj import create_boxes, create_axes  # オブジェクト生成はここに分離
+from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffepeg import MovieFFmpeg
 from physics import Physics  # 物理シミュレーションデータ
 
@@ -25,7 +26,6 @@ class GLWidget(QOpenGLWidget):
     
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.is_saving: bool = False             # 動画保存フラグ
         self.total_frame: int = 0                # 保存する総フレーム数
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
         self.show_labels: bool = True  # ラベル表示フラグ
@@ -53,16 +53,16 @@ class GLWidget(QOpenGLWidget):
             raise RuntimeError(GL.glGetProgramInfoLog(self.prog).decode())
 
         GL.glEnable(GL.GL_DEPTH_TEST)
-
-        self.phys = Physics()  # 物理シミュレーションデータ
-        self.phys.start_stepping()  # シミュレーションスレッド開始
+        GL.glDisable(GL.GL_CULL_FACE) # カリング無効化（全ての面を描画）
         
         # --- 動画保存用ffmpeg準備 ---
-        self.is_saving = bool(param.movie.is_saving)
+        self.is_saving = bool(param.is_saving)
         self.frameCount = 0
-        self.ffmpeg = MovieFFmpeg(self.width(), self.height())
         if self.is_saving:
-            self.resizeGL(self.width(), self.height())  # 初期化
+            self.ffmpeg = MovieFFmpeg(self.width(), self.height())
+        
+        self.phys = Physics(self.is_saving)  # 物理シミュレーションデータ
+        self.phys.start_stepping()  # シミュレーションスレッド開始
             
         self.start_time = time.perf_counter()  # 描画開始時刻
         self.previous_time = self.start_time
@@ -101,6 +101,7 @@ class GLWidget(QOpenGLWidget):
         current_time = time.perf_counter()
         t = current_time - self.start_time  # 経過時間 [秒]
         dt_frame = current_time - self.previous_time  # 前フレームからの経過時間 [秒]
+        # print(dt_frame)
         self.phys.update_objects(t, dt_frame)  # 物理シミュレーションの更新
         
         # --- オブジェクトの描画 ---
@@ -114,7 +115,7 @@ class GLWidget(QOpenGLWidget):
             painter.setFont(font)
             for obj in self.phys.objects:
                 pos = obj.localframe_to_window(view, proj, (self.width(), self.height()))
-                r, g, b = [int(c*255) for c in obj.color]
+                r, g, b, a = [int(c*255) for c in obj.color]
                 path = QPainterPath()
                 path.addText(pos[0], pos[1], painter.font(), obj.name)
                 painter.setPen(QPen(Qt.GlobalColor.white, 1.5))

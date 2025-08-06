@@ -1,15 +1,15 @@
+is_saving: false #動画やログを保存するかどうか
 save_dir: "result" #result_local
 movie:
-  is_saving: true
-  filename: "out.mp4"
+  # filename: "out.mp4"
   fps: 30
   total_sec: 10
 
 seed: 42
 
 shader:
-  vert: Shader/rectangular.vert # 頂点シェーダパス
-  frag: Shader/rectangular.frag # フラグメントシェーダパス
+  vert: Shader/Phong.vert # 頂点シェーダパス
+  frag: Shader/Phong.frag # フラグメントシェーダパス
 
 window_width: 1000
 window_height: 1000
