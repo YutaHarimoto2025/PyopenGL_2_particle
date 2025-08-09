@@ -53,7 +53,8 @@ class Object3D:
         self.vbo_normal = GL.glGenBuffers(1) if hasattr(self, "normals") and self.normals is not None and len(self.normals) > 0 else None
         # UV配列（必要なら）
         self.vbo_uv = GL.glGenBuffers(1) if hasattr(self, "uvs") and self.uvs is not None and len(self.uvs) > 0 else None
-        self.ebo = GL.glGenBuffers(1)
+        self.ebo_lines = GL.glGenBuffers(1) if self.line_indices.size > 0 else None
+        self.ebo_tris  = GL.glGenBuffers(1) if self.tri_indices.size  > 0 else None
         self.vao = GL.glGenVertexArrays(1)
 
         GL.glBindVertexArray(self.vao)
@@ -79,12 +80,13 @@ class Object3D:
             GL.glVertexAttribPointer(2, 2, GL.GL_FLOAT, False, 0, None)
 
         # EBO (index buffer)
-        GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo)
-        # indexは後で描画時に切替えても良いし、どちらか初期転送でも良い
-        if self.line_indices.size > 0:
+        if self.ebo_lines is not None:
+            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo_lines)
             GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, self.line_indices.nbytes, self.line_indices, GL.GL_STATIC_DRAW)
-        elif self.tri_indices.size > 0:
+        if self.ebo_tris is not None:
+            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo_tris)
             GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, self.tri_indices.nbytes, self.tri_indices, GL.GL_STATIC_DRAW)
+
 
         GL.glBindVertexArray(0)
 
@@ -118,14 +120,14 @@ class Object3D:
         GL.glBindVertexArray(self.vao)
 
         # --- LINE描画 ---
-        if self.line_indices.size > 0:
-            GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, self.line_indices.nbytes, self.line_indices, GL.GL_STATIC_DRAW)
-            GL.glDrawElements(GL.GL_LINES, len(self.line_indices), GL.GL_UNSIGNED_INT, None)
+        if self.ebo_lines is not None:
+            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo_lines)
+            GL.glDrawElements(GL.GL_LINES, int(self.line_indices.size), GL.GL_UNSIGNED_INT, None)
         # --- TRI描画 ---
-        if self.tri_indices.size > 0:
-            GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, self.tri_indices.nbytes, self.tri_indices, GL.GL_STATIC_DRAW)
-            GL.glDrawElements(GL.GL_TRIANGLES, len(self.tri_indices), GL.GL_UNSIGNED_INT, None)
-
+        if self.ebo_tris is not None:
+            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo_tris)
+            GL.glDrawElements(GL.GL_TRIANGLES, int(self.tri_indices.size), GL.GL_UNSIGNED_INT, None)
+        
         GL.glBindVertexArray(0)
 
     def localframe_to_window(

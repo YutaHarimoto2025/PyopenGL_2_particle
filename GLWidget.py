@@ -53,8 +53,8 @@ class GLWidget(QOpenGLWidget):
             raise RuntimeError(GL.glGetProgramInfoLog(self.prog).decode())
 
         GL.glEnable(GL.GL_DEPTH_TEST)
-        GL.glDisable(GL.GL_CULL_FACE) # カリング無効化（全ての面を描画）
-        GL.glDisable(GL.GL_BLEND)
+        # GL.glDisable(GL.GL_CULL_FACE) # カリング無効化（全ての面を描画）
+        # GL.glDisable(GL.GL_BLEND)
         
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)

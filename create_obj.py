@@ -83,7 +83,7 @@ def create_balls(
             name=name,
             name_posi_local=(0,0,0),
             posi=posi,
-            is_move=False
+            is_move=True
         )
         obj_list.append(obj)
     return obj_list
