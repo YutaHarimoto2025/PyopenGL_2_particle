@@ -73,14 +73,12 @@ def create_balls(
         posi = tuple(
             rngnp.uniform(low=lim[0], high=lim[1]) for lim in posi_limit
         )
-        color = (1.0, 1.0, 1.0)  # 白
-        name = f"ball{i+1}"
 
         obj = Object3D(
             vertices=vertices,
             tri_indices=tri_indices,
-            color=color,
-            name=name,
+            color=(1.0, 0.5, 1.0),
+            name=f"ball{i+1}",
             name_posi_local=(0,0,0),
             posi=posi,
             is_move=True

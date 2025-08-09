@@ -9,7 +9,7 @@ seed: 42
 
 shader:
   vert: Shader/Phong.vert # 頂点シェーダパス
-  frag: Shader/Phong.frag # フラグメントシェーダパス
+  frag: Shader/RichPhong.frag # フラグメントシェーダパス
 
 window_width: 1000
 window_height: 1000

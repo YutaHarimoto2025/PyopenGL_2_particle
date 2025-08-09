@@ -14,6 +14,7 @@ from create_obj import create_boxes, create_axes  # オブジェクト生成は�
 from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffepeg import MovieFFmpeg
 from physics import Physics  # 物理シミュレーションデータ
+from rendering import Renderer
 
 class GLWidget(QOpenGLWidget):
     """
@@ -40,21 +41,7 @@ class GLWidget(QOpenGLWidget):
         # --- シェーダプログラム読み込み・コンパイル ---
         vert_src = load_shader(working_dir/param.shader.vert)
         frag_src = load_shader(working_dir/param.shader.frag)
-        self.prog = GL.glCreateProgram()
-        for src, stype in [(vert_src, GL.GL_VERTEX_SHADER), (frag_src, GL.GL_FRAGMENT_SHADER)]:
-            s = GL.glCreateShader(stype)
-            GL.glShaderSource(s, src)
-            GL.glCompileShader(s)
-            if not GL.glGetShaderiv(s, GL.GL_COMPILE_STATUS):
-                raise RuntimeError(GL.glGetShaderInfoLog(s).decode())
-            GL.glAttachShader(self.prog, s)
-        GL.glLinkProgram(self.prog)
-        if not GL.glGetProgramiv(self.prog, GL.GL_LINK_STATUS):
-            raise RuntimeError(GL.glGetProgramInfoLog(self.prog).decode())
-
-        GL.glEnable(GL.GL_DEPTH_TEST)
-        # GL.glDisable(GL.GL_CULL_FACE) # カリング無効化（全ての面を描画）
-        # GL.glDisable(GL.GL_BLEND)
+        self.renderer = Renderer(vert_src, frag_src)
         
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)
@@ -81,23 +68,13 @@ class GLWidget(QOpenGLWidget):
         """
         3Dシーンの描画、QPainterによるラベル描画、動画保存処理。
         """
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-        GL.glUseProgram(self.prog)
         GL.glClearColor(*param_changable["bg_color"]) #背景色
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
-        # --- ビュー・プロジェクション行列の生成 ---
-        view = glm.lookAt(glm.vec3(2,-2,2), glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
+        cam_posi = glm.vec3(2, -2, 2)  # カメラ位置
+        view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
         proj = glm.perspective(glm.radians(param_changable["fov"]), self.aspect, 0.01, 100.0) #視野角， アスペクト比，近接面，遠方面
-
-        # --- uniformロケーション取得 ---
-        uModelLoc = GL.glGetUniformLocation(self.prog, "uModel")
-        uViewLoc  = GL.glGetUniformLocation(self.prog, "uView")
-        uProjLoc  = GL.glGetUniformLocation(self.prog, "uProj")
-        uColorLoc = GL.glGetUniformLocation(self.prog, "uColor")
-
-        # --- ビュー・プロジェクション行列をGPUへ送信 ---
-        GL.glUniformMatrix4fv(uViewLoc, 1, False, glm.value_ptr(view))
-        GL.glUniformMatrix4fv(uProjLoc, 1, False, glm.value_ptr(proj))
+        self.renderer.set_common(cam_posi, view, proj)
 
         current_time = time.perf_counter()
         t = current_time - self.start_time  # 経過時間 [秒]
@@ -105,24 +82,28 @@ class GLWidget(QOpenGLWidget):
         # print(dt_frame)
         self.phys.update_objects(t, dt_frame)  # 物理シミュレーションの更新
         
+        uModelLoc = self.renderer.uModel   # 使わないが保持しておくなら
+        uColorLoc = self.renderer.uColor
         # --- オブジェクトの描画 ---
         for obj in self.phys.objects:
-            obj.draw(self.prog, uModelLoc, uColorLoc, xp=xp, np=np)  # CuPy/NumPy両対応
+            self.renderer.set_model_and_normal(obj.model_mat)   # uModel / uNormalMatrix
+            self.renderer.set_color(obj.color)             # uColor
+            obj.draw()  # CuPy/NumPy両対応
 
         # --- QPainterでラベル描画 ---
         if self.show_labels:
             painter = QPainter(self)
-            font = QFont("sans-serif", 16, QFont.Weight.Bold)
+            font = QFont("Noto Sans CJK JP", 16, QFont.Weight.Bold)
             painter.setFont(font)
             for obj in self.phys.objects:
                 pos = obj.localframe_to_window(view, proj, (self.width(), self.height()))
                 r, g, b, a = [int(c*255) for c in obj.color]
                 path = QPainterPath()
                 path.addText(pos[0], pos[1], painter.font(), obj.name)
-                painter.setPen(QPen(Qt.GlobalColor.white, 1.5))
-                painter.drawPath(path)
-                painter.setPen(QPen(QColor(r,g,b), 0.6))
-                painter.fillPath(path, QColor(r,g,b))
+                # painter.setPen(QPen(Qt.GlobalColor.white, 3))
+                # painter.drawPath(path) # テキストの輪郭
+
+                painter.fillPath(path, QColor(r,g,b))#中を塗りつぶす
             painter.end()
 
         # --- フレームカウント管理・動画保存処理 ---

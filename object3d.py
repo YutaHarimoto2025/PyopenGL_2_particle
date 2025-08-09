@@ -110,13 +110,11 @@ class Object3D:
                     * glm.scale(glm.mat4(1), self.scale)
                 )
 
-    def draw(self, prog: int, uModelLoc: int, uColorLoc: int, xp=xp, np=np) -> None:
+    def draw(self) -> None:
         """
         OpenGL描画処理。バッファ転送や属性設定も含む。
         xp/npを引数で指定しCuPy/NumPy両対応。
         """
-        GL.glUniformMatrix4fv(uModelLoc, 1, False, glm.value_ptr(self.model_mat))
-        GL.glUniform4f(uColorLoc, *self.color)
         GL.glBindVertexArray(self.vao)
 
         # --- LINE描画 ---
