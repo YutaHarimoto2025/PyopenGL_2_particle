@@ -3,7 +3,7 @@ import glm
 from typing import Optional, Tuple, Any
 import math
 
-from tools import xp, np, xpFloat, xpInt, npFloat, npInt
+from tools import xp, np, xpFloat, xpInt, npFloat, npInt, rngnp
 from graphic_tools import compute_normals  
 from object3d import Object3D
 
@@ -71,7 +71,7 @@ def create_balls(
 
         # 配置例：x軸上に等間隔で並べる
         posi = tuple(
-            np.random.uniform(low=lim[0], high=lim[1]) for lim in posi_limit
+            rngnp.uniform(low=lim[0], high=lim[1]) for lim in posi_limit
         )
         color = (1.0, 1.0, 1.0)  # 白
         name = f"ball{i+1}"
@@ -83,7 +83,7 @@ def create_balls(
             name=name,
             name_posi_local=(0,0,0),
             posi=posi,
-            is_move=True
+            is_move=False
         )
         obj_list.append(obj)
     return obj_list

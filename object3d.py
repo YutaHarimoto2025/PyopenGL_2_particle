@@ -44,7 +44,7 @@ class Object3D:
         
         # 初期のモデル行列　動かないものはこれを使いまわす
         self.model_mat = glm.mat4(1)
-        self.update_model_matrix()  # 初期化時にモデル行列を計算
+        self.update_model_matrix(init_flag=True)  # 初期化時にモデル行列を計算
         
         # --- OpenGLバッファ生成 ---
         # 頂点配列（必須）
@@ -98,8 +98,8 @@ class Object3D:
             dq = glm.angleAxis(d_angle, glm.vec3(0, 1, 0)) # 回転軸はY軸
             self.rotation = dq * self.rotation  # クォータニオンの積で回転　演算は非可換
     
-    def update_model_matrix(self) -> None:
-        if not self.is_move:
+    def update_model_matrix(self, init_flag=False) -> None:
+        if init_flag is False and not self.is_move:
             return
         else:
             self.model_mat = (

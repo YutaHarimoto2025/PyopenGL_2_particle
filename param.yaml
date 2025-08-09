@@ -1,5 +1,5 @@
 is_saving: false #動画やログを保存するかどうか
-save_dir: "result" #result_local
+save_dir: "result_test" #result_local
 movie:
   # filename: "out.mp4"
   fps: 30

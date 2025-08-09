@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 from omegaconf import OmegaConf
-from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtCore import QTimer, pyqtSignal, QCoreApplication
 import numpy as np
 import git
 from datetime import datetime
@@ -114,15 +114,13 @@ def update_param_changable():
         param_changable.clear()
         param_changable.update(json.load(f))
 
-# --- 乱数生成統一（常にxpに合わせる）---
+# --- 乱数生成統一 ---
 seed = param.get("seed", 42)
-if xp.__name__ == "cupy":
-    rng = xp.random.RandomState(seed)
-else:
-    rng = np.random.default_rng(seed)
+rngxp = xp.random.RandomState(seed)
+rngnp = np.random.default_rng(seed)
 
 __all__ = [
-    "param", "param_changable", "USE_CUDA", "xp", "np", "rng",
+    "param", "param_changable", "USE_CUDA", "xp", "np", "rngnp", "rngxp",
     "update_param_changable",
     "load_shader", "xpFloat", "xpInt", "npFloat", "npInt", "working_dir"
 ]

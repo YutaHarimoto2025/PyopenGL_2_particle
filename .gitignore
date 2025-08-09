@@ -1,4 +1,4 @@
-result_local/** 
+result_test/** 
 # Python バイトコードキャッシュ
 __pycache__/
 *.pyc

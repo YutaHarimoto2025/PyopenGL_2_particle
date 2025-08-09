@@ -132,6 +132,11 @@ class MainWindow(QMainWindow):
         update_param_changable()  # パラメータの更新
         # 新しいfps値でタイマー再設定, 厳密に同じにはならない
         self.gl.ctrl_fps_timer.start(max(5, 1000 // int(param_changable["fps"])))
+        
+    def closeEvent(self, event):
+        QApplication.quit()
+        print("end")
+        event.accept()
 
 # --- エントリーポイント ---
 if __name__ == "__main__":
