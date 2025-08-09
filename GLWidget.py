@@ -82,8 +82,6 @@ class GLWidget(QOpenGLWidget):
         # print(dt_frame)
         self.phys.update_objects(t, dt_frame)  # 物理シミュレーションの更新
         
-        uModelLoc = self.renderer.uModel   # 使わないが保持しておくなら
-        uColorLoc = self.renderer.uColor
         # --- オブジェクトの描画 ---
         for obj in self.phys.objects:
             self.renderer.set_model_and_normal(obj.model_mat)   # uModel / uNormalMatrix
@@ -93,7 +91,7 @@ class GLWidget(QOpenGLWidget):
         # --- QPainterでラベル描画 ---
         if self.show_labels:
             painter = QPainter(self)
-            font = QFont("Noto Sans CJK JP", 16, QFont.Weight.Bold)
+            font = QFont("Noto Sans CJK JP", 16, QFont.Weight.Normal)
             painter.setFont(font)
             for obj in self.phys.objects:
                 pos = obj.localframe_to_window(view, proj, (self.width(), self.height()))

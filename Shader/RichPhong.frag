@@ -37,8 +37,9 @@ void main(){
     }else{
         col = phong(N, L, V);
         if(uShadingMode == 2){
-            float rim = 1.0 - max(dot(N, V), 0.0);
-            col += vec3(rim) * uRimStrength; // リムライト
+            float rim = 1.0 - max(dot(N, V), 0.0);//視線にたいして面が横向きほど輪郭ぽい
+            vec3 rimColor = vec3(1.0, 1.0, 1.0);
+            col += rimColor *rim * uRimStrength; // リムライト
         }
     }
 

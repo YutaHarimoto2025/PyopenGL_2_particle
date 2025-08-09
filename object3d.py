@@ -29,7 +29,7 @@ class Object3D:
         self.vertices = np.asarray(vertices)
         self.line_indices = np.asarray(line_indices) if line_indices is not None else np.asarray(npInt([]))
         self.tri_indices = np.asarray(tri_indices) if tri_indices is not None else np.asarray(npInt([]))
-        print(name, color, posi)
+        # print(name, color, posi)
         self.normals = compute_normals(self.vertices, self.tri_indices.reshape(-1, 3)) if len(self.tri_indices) > 0 else np.asarray(npFloat([])) # 法線ベクトル計算
         if len(color) == 3:
             self.color = (*color, 1.0)

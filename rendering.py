@@ -42,13 +42,13 @@ class Renderer:
         GL.glEnable(GL.GL_DEPTH_TEST); GL.glDepthFunc(GL.GL_LESS)
         GL.glEnable(GL.GL_FRAMEBUFFER_SRGB)
         GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK) #閉じたメッシュならON
-        # GL.glDisable(GL.GL_BLEND)
+        GL.glEnable(GL.GL_BLEND)
 
     def set_common(self, cam_posi, view, proj):
         light_pos = (5.0, 5.0, 5.0)
         shading_mode=2 # 0:Phong / 1:Toon / 2:Phong+Rim
-        rim=0.35
-        gamma=2.2
+        rim=0.2 #0~1 1に近いと輪郭が白くなる
+        gamma=1.4 #1で補正なし，<1で暗くなる， >1で明るくなる
         # --- ビュー・プロジェクション行列の生成 ---
         GL.glUseProgram(self.prog)
         GL.glUniformMatrix4fv(self.uView, 1, False, glm.value_ptr(view))
