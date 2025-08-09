@@ -138,6 +138,11 @@ if __name__ == "__main__":
     # 垂直同期切ってfps爆速になる魔法　#普段はディスプレイのfpsと同じがやや遅いか
     format = QSurfaceFormat()
     format.setSwapInterval(0)  # VSyncオフ
+    # format.setRenderableType(QSurfaceFormat.OpenGL)
+    # format.setVersion(3, 3)
+    # format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+    # format.setDepthBufferSize(24)
+    # format.setSamples(4)  # 任意：ジャギー軽減
     QSurfaceFormat.setDefaultFormat(format)
     
     app = QApplication(sys.argv)
