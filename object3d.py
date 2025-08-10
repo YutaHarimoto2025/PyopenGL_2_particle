@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Any
 import math
 
 from tools import xp, np, xpFloat, xpInt, npFloat, npInt
-from graphic_tools import compute_normals  
+from graphic_tools import compute_normals, GLGeometry
 
 class Object3D:
     """
@@ -17,6 +17,7 @@ class Object3D:
         vertices: np.ndarray|list,
         line_indices: np.ndarray|list|None = None,
         tri_indices: np.ndarray|list|None = None,
+        uvs: np.ndarray|None= np.empty((0, 2), dtype=np.float32),
         posi: Tuple[float, float, float] = (0, 0, 0), # 世界座標
         rot: glm.quat|None=None,
         color: Tuple[float, float, float, float] = (1, 1, 1, 1), #白
@@ -31,10 +32,13 @@ class Object3D:
         self.tri_indices = np.asarray(tri_indices) if tri_indices is not None else np.asarray(npInt([]))
         # print(name, color, posi)
         self.normals = compute_normals(self.vertices, self.tri_indices.reshape(-1, 3)) if len(self.tri_indices) > 0 else np.asarray(npFloat([])) # 法線ベクトル計算
-        if len(color) == 3:
-            self.color = (*color, 1.0)
-        else:
-            self.color = color
+        self.uvs = npFloat(uvs)
+        if self.uvs.ndim != 2 or self.uvs.shape[1] != 2:
+            raise ValueError(f"uvs must have shape (N,2), but got {self.uvs.shape}")
+        if self.uvs.shape[0] not in (0, self.vertices.shape[0]):
+            raise ValueError(f"uv count {self.uvs.shape[0]} does not match vertex count {self.vertices.shape[0]}")
+        self.color = (*color, 1.0) if len(color) == 3 else color if len(color) == 4 else (_ for _ in ()).throw(ValueError("Color must be a tuple of 3 or 4 floats"))
+
         self.name = name
         self.name_posi_local = name_posi_local
         self.position = glm.vec3(*posi)
@@ -46,48 +50,22 @@ class Object3D:
         self.model_mat = glm.mat4(1)
         self.update_model_matrix(init_flag=True)  # 初期化時にモデル行列を計算
         
-        # --- OpenGLバッファ生成 ---
-        # 頂点配列（必須）
-        self.vbo = GL.glGenBuffers(1)
-        # 法線配列
-        self.vbo_normal = GL.glGenBuffers(1) if hasattr(self, "normals") and self.normals is not None and len(self.normals) > 0 else None
-        # UV配列（必要なら）
-        self.vbo_uv = GL.glGenBuffers(1) if hasattr(self, "uvs") and self.uvs is not None and len(self.uvs) > 0 else None
-        self.ebo_lines = GL.glGenBuffers(1) if self.line_indices.size > 0 else None
-        self.ebo_tris  = GL.glGenBuffers(1) if self.tri_indices.size  > 0 else None
-        self.vao = GL.glGenVertexArrays(1)
-
-        GL.glBindVertexArray(self.vao)
-
-        # 位置バッファ
-        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.vbo)
-        GL.glBufferData(GL.GL_ARRAY_BUFFER, self.vertices.nbytes, self.vertices, GL.GL_STATIC_DRAW)
-        GL.glEnableVertexAttribArray(0)
-        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, False, 0, None)
-
-        # 法線バッファ
-        if self.vbo_normal is not None:
-            GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.vbo_normal)
-            GL.glBufferData(GL.GL_ARRAY_BUFFER, self.normals.nbytes, self.normals, GL.GL_STATIC_DRAW)
-            GL.glEnableVertexAttribArray(1)
-            GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, False, 0, None)
-
-        # UVバッファ（必要なら）
-        if self.vbo_uv is not None:
-            GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.vbo_uv)
-            GL.glBufferData(GL.GL_ARRAY_BUFFER, self.uvs.nbytes, self.uvs, GL.GL_STATIC_DRAW)
-            GL.glEnableVertexAttribArray(2)
-            GL.glVertexAttribPointer(2, 2, GL.GL_FLOAT, False, 0, None)
-
-        # EBO (index buffer)
-        if self.ebo_lines is not None:
-            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo_lines)
-            GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, self.line_indices.nbytes, self.line_indices, GL.GL_STATIC_DRAW)
-        if self.ebo_tris is not None:
-            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo_tris)
-            GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, self.tri_indices.nbytes, self.tri_indices, GL.GL_STATIC_DRAW)
-
-
+        ################ --- OpenGLバッファ生成 ---
+        self.geo = GLGeometry()
+        # 位置
+        self.geo.add_array(0, self.vertices, 3)
+        # 法線（あれば）
+        if self.normals.size > 0:
+            self.geo.add_array(1, self.normals, 3)
+        # UV（保持していれば）
+        if self.uvs.size > 0:
+            self.geo.add_array(2, self.uvs, 2)
+        # インデックス
+        if self.line_indices.size > 0:
+            self.geo.set_elements("lines", self.line_indices)
+        if self.tri_indices.size > 0:
+            self.geo.set_elements("tris",  self.tri_indices)
+        
         GL.glBindVertexArray(0)
 
     def update_posi_rot(self, dt: float) -> None:
@@ -115,18 +93,10 @@ class Object3D:
         OpenGL描画処理。バッファ転送や属性設定も含む。
         xp/npを引数で指定しCuPy/NumPy両対応。
         """
-        GL.glBindVertexArray(self.vao)
-
-        # --- LINE描画 ---
-        if self.ebo_lines is not None:
-            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo_lines)
-            GL.glDrawElements(GL.GL_LINES, int(self.line_indices.size), GL.GL_UNSIGNED_INT, None)
-        # --- TRI描画 ---
-        if self.ebo_tris is not None:
-            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo_tris)
-            GL.glDrawElements(GL.GL_TRIANGLES, int(self.tri_indices.size), GL.GL_UNSIGNED_INT, None)
-        
-        GL.glBindVertexArray(0)
+        if self.line_indices.size > 0:
+            self.geo.draw_elements(GL.GL_LINES, "lines")
+        if self.tri_indices.size > 0:
+            self.geo.draw_elements(GL.GL_TRIANGLES, "tris")
 
     def localframe_to_window(
         self, view: glm.mat4, proj: glm.mat4, viewport_size: Tuple[int, int]

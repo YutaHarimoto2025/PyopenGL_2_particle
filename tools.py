@@ -10,17 +10,6 @@ import numpy as np
 import git
 from datetime import datetime
 
-
-# --- GLSLシェーダ読込 ---
-def load_shader(filename: str) -> str:
-    """
-    GLSLシェーダファイルを読み込み。precision行は自動削除。
-    """
-    with open(filename, encoding="utf-8") as f:
-        code = f.read()
-    code = "\n".join([l for l in code.splitlines() if not l.strip().startswith("precision")])
-    return code
-
 def create_periodic_timer(parent, slot, interval_ms):
     timer = QTimer(parent)
     timer.timeout.connect(slot)
@@ -122,6 +111,6 @@ rngnp = np.random.default_rng(seed)
 __all__ = [
     "param", "param_changable", "USE_CUDA", "xp", "np", "rngnp", "rngxp",
     "update_param_changable",
-    "load_shader", "xpFloat", "xpInt", "npFloat", "npInt", "working_dir"
+    "xpFloat", "xpInt", "npFloat", "npInt", "working_dir"
 ]
 

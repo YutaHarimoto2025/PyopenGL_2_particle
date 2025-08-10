@@ -45,6 +45,10 @@ class MainWindow(QMainWindow):
         clear_act = QAction("全削除", self)
         clear_act.triggered.connect(self._clear_objects)
         view_menu.addAction(clear_act)
+        
+        reset_act = QAction("リセット", self)
+        reset_act.triggered.connect(self._reset_objects)
+        view_menu.addAction(reset_act)
 
         # ツールバー（半径スライダー・ラベル表示切替ボタン）
         tb = QToolBar("操作")
@@ -108,6 +112,17 @@ class MainWindow(QMainWindow):
         self.gl.update()
         self.list_widget.clear()
         self.status.showMessage("すべてのオブジェクトを削除しました")
+        
+    def _reset_objects(self) -> None:
+        #球の位置はランダマイズされる
+        if hasattr(self, "gl"):
+            self.gl.setParent(None)
+            self.gl.deleteLater()
+
+        self.gl = GLWidget()  # 新しいGLWidgetインスタンス
+        self.setCentralWidget(self.gl)
+        self.status.showMessage("初期状態をランダマイズしてリセットしました")
+        self.gl.update()    
 
     def _update_status(self, x: float, y: float, count: int) -> None:
         """

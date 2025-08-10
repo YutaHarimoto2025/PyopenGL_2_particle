@@ -87,42 +87,108 @@ def create_balls(
     return obj_list
 
 
-def create_boxes(scale =  (1, 1, 1)) -> list:
+# def create_boxes(scale =  (1, 1, 1)) -> list:
+#     """
+#     直方体オブジェクトをxp(CuPy/NumPy)で生成し返す
+#     """
+#     obj_list = []
+    
+#     vertices = npFloat(
+#         [
+#         [-0.5, -0.5, -0.5], [ 0.5, -0.5, -0.5], [ 0.5,  0.5, -0.5], [-0.5,  0.5, -0.5],
+#         [-0.5, -0.5,  0.5], [ 0.5, -0.5,  0.5], [ 0.5,  0.5,  0.5], [-0.5,  0.5,  0.5]
+#         ]
+#     )
+#     line_indices = npInt(
+#         [
+#         0,1, 1,2, 2,3, 3,0,    # -Z面
+#         4,5, 5,6, 6,7, 7,4,    # +Z面
+#         0,4, 1,5, 2,6, 3,7,    # 側面
+#         ]
+#     )
+#     tri_indices = npInt(
+#         [
+#         0,1,2, #0,2,3,  # -Z面 (例)
+#         # 4,5,6, 4,6,7, ...
+#         ]
+#     )
+#     color = (1.0, 1.0, 0.2) # 黄色
+    
+#     obj_list.append(Object3D(
+#         vertices=vertices,
+#         line_indices=line_indices,
+#         tri_indices=tri_indices, 
+#         posi = (0.5, 0.5, 0.5), # 中心位置
+#         color=color,
+#         scale = scale,
+#         name="Box",
+#         name_posi_local=(0,0,0)))
+#     return obj_list
+
+
+def create_boxes(scale=(1, 1, 1)) -> list:
     """
-    直方体オブジェクトをxp(CuPy/NumPy)で生成し返す
+    一辺1の直方体。各面ごとに頂点を独立させ、UV(0..1)を割り当てる。
+    戻りは Object3D のリスト（既存API踏襲）。
     """
     obj_list = []
-    
-    vertices = npFloat(
-        [
-        [-0.5, -0.5, -0.5], [ 0.5, -0.5, -0.5], [ 0.5,  0.5, -0.5], [-0.5,  0.5, -0.5],
-        [-0.5, -0.5,  0.5], [ 0.5, -0.5,  0.5], [ 0.5,  0.5,  0.5], [-0.5,  0.5,  0.5]
-        ]
-    )
-    line_indices = npInt(
-        [
-        0,1, 1,2, 2,3, 3,0,    # -Z面
-        4,5, 5,6, 6,7, 7,4,    # +Z面
-        0,4, 1,5, 2,6, 3,7,    # 側面
-        ]
-    )
-    tri_indices = npInt(
-        [
-        0,1,2, #0,2,3,  # -Z面 (例)
-        # 4,5,6, 4,6,7, ...
-        ]
-    )
-    color = (1.0, 1.0, 0.2) # 黄色
-    
-    obj_list.append(Object3D(
-        vertices=vertices,
-        line_indices=line_indices,
-        tri_indices=tri_indices, 
+
+    # 6面 × 4頂点 = 24頂点（各面に独立UVを持たせる）
+    V = npFloat([
+        # -Z face
+        [-0.5,-0.5,-0.5], [ 0.5,-0.5,-0.5], [ 0.5, 0.5,-0.5], [-0.5, 0.5,-0.5],
+        # +Z face
+        [-0.5,-0.5, 0.5], [ 0.5,-0.5, 0.5], [ 0.5, 0.5, 0.5], [-0.5, 0.5, 0.5],
+        # -X face
+        [-0.5,-0.5,-0.5], [-0.5, 0.5,-0.5], [-0.5, 0.5, 0.5], [-0.5,-0.5, 0.5],
+        # +X face
+        [ 0.5,-0.5,-0.5], [ 0.5, 0.5,-0.5], [ 0.5, 0.5, 0.5], [ 0.5,-0.5, 0.5],
+        # -Y face
+        [-0.5,-0.5,-0.5], [ 0.5,-0.5,-0.5], [ 0.5,-0.5, 0.5], [-0.5,-0.5, 0.5],
+        # +Y face
+        [-0.5, 0.5,-0.5], [ 0.5, 0.5,-0.5], [ 0.5, 0.5, 0.5], [-0.5, 0.5, 0.5],
+    ])
+
+    # 各面の4頂点に [0,0],[1,0],[1,1],[0,1] を割り当て（面ごと独立）
+    UV_face = np.array([[0,0],[1,0],[1,1],[0,1]], dtype=np.float32)
+    UV = np.vstack([UV_face for _ in range(6)]).astype(np.float32)
+
+    # 各面 2トライアングル（0,1,2, 0,2,3）× 6面
+    TRI = []
+    for f in range(6):
+        o = 4 * f
+        TRI += [o+0, o+1, o+2,  o+0, o+2, o+3]
+    TRI = npInt(TRI)
+
+    # ライン（ワイヤーフレーム）。面ごとに4辺（重複OKで簡易）
+    LINES = []
+    face_edges = [(0,1),(1,2),(2,3),(3,0)]
+    for f in range(6):
+        o = 4 * f
+        for a,b in face_edges:
+            LINES += [o+a, o+b]
+    LINES = npInt(LINES)
+
+    color = (1.0, 1.0, 0.2)  # 黄色
+
+    box = Object3D(
+        vertices=V,
+        line_indices=LINES,
+        tri_indices=TRI,
+        posi=(0.5, 0.5, 0.5),
         color=color,
-        scale = scale,
+        scale=scale,
         name="Box",
-        name_posi_local=(0,0,0)))
+        name_posi_local=(0,0,0),
+    )
+
+    # ★ UV を Object3D に渡す（あなたの実装に合わせて後付けでOK）
+    box.uvs = UV
+    box.geo.add_array(2, UV, 2)  # layout(location=2) に (u,v)
+
+    obj_list.append(box)
     return obj_list
+
 
 def create_axes() -> list:
     """

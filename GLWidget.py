@@ -4,12 +4,14 @@ from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtGui import QPainter, QFont, QPen, QColor, QPainterPath
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from OpenGL import GL
+from OpenGL.GLU import gluUnProject
 import glm
 from typing import List, Optional
 from pathlib import Path
 import time
 
-from tools import xp, np, load_shader, create_periodic_timer, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
+from tools import xp, np, create_periodic_timer, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
+from graphic_tools import load_shader
 from create_obj import create_boxes, create_axes  # オブジェクト生成はここに分離
 from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffepeg import MovieFFmpeg
@@ -39,9 +41,8 @@ class GLWidget(QOpenGLWidget):
         OpenGL初期化処理。シェーダコンパイル、オブジェクト生成、背景色設定、動画保存準備など。
         """
         # --- シェーダプログラム読み込み・コンパイル ---
-        vert_src = load_shader(working_dir/param.shader.vert)
-        frag_src = load_shader(working_dir/param.shader.frag)
-        self.renderer = Renderer(vert_src, frag_src)
+        self.renderer = Renderer()
+        self.renderer.init_checkerboard() 
         
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)
@@ -71,10 +72,18 @@ class GLWidget(QOpenGLWidget):
         GL.glClearColor(*param_changable["bg_color"]) #背景色
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
+        # 透視投影行列
         cam_posi = glm.vec3(2, -2, 2)  # カメラ位置
         view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
         proj = glm.perspective(glm.radians(param_changable["fov"]), self.aspect, 0.01, 100.0) #視野角， アスペクト比，近接面，遠方面
+        
+        # 正射影
+        # cam_posi = glm.vec3(0, 0, 10)
+        # view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,1,0))
+        # proj = glm.ortho(-5.0, 5.0, -5.0, 5.0, 0.01, 100.0)
+        
         self.renderer.set_common(cam_posi, view, proj)
+        self.renderer.draw_checkerboard(view, proj) 
 
         current_time = time.perf_counter()
         t = current_time - self.start_time  # 経過時間 [秒]
@@ -84,8 +93,7 @@ class GLWidget(QOpenGLWidget):
         
         # --- オブジェクトの描画 ---
         for obj in self.phys.objects:
-            self.renderer.set_model_and_normal(obj.model_mat)   # uModel / uNormalMatrix
-            self.renderer.set_color(obj.color)             # uColor
+            self.renderer.set_each(obj.model_mat, obj.color)   # uModel / uNormalMatrix / uColor             # uColor
             obj.draw()  # CuPy/NumPy両対応
 
         # --- QPainterでラベル描画 ---
