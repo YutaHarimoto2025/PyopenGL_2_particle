@@ -5,6 +5,8 @@
     0.3,
     1.0
   ],
+  "ball_texture": "source/worldmap.jpg",
+  "checkerboard": true,
   "fov": 60.0,
   "fps": 100
 }

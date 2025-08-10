@@ -7,7 +7,7 @@ import glm
 import json
 
 from tools import working_dir, param, param_changable, make_datetime_file, xp, np
-from create_obj import create_boxes, create_axes, create_balls
+from create_obj import create_boxes, create_axes, create_balls, oneball_center
 from object3d import Object3D
 
 class Physics:
@@ -16,7 +16,8 @@ class Physics:
         self.axes = create_axes()
         self.box = create_boxes(scale=(1, 1, 1))
         self.balls = create_balls(num=10, radius=0.1)
-        self.objects: List[Object3D] = self.box + self.axes + self.balls
+        # self.objects: List[Object3D] = self.box + self.axes + self.balls
+        self.objects: List[Object3D] = oneball_center() + self.axes
         self.objects_state_buffer: List[List[dict]] = []
         self.dt_sim = 0.001
         self.t_sim = 0.0

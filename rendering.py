@@ -20,7 +20,7 @@ class Renderer:
             # 追加（マテリアル/ライティング）
             "uDiffuse", "uLightColor", "uAmbient", "uSpecularStr", "uShininess",
             # 追加（UV/テクスチャ）
-            "uUseTexture", "uAlbedoTex", "uTexIsSRGB",
+            "uUseTexture", "uAlbedoTex", "uTexIsSRGB", "uTex",
             "uUseUVChecker", "uUVCell", "uUVColor1", "uUVColor2",
         }
         self._get_uniform_loc(prog=self.prog, names=uniform_names)  
@@ -64,17 +64,50 @@ class Renderer:
         GL.glUniform1f(self.uUVCell,       0.01)
         GL.glUniform3f(self.uUVColor1,     0.92, 0.92, 0.92)
         GL.glUniform3f(self.uUVColor2,     0.08, 0.08, 0.08)
-
-        GL.glUniform1i(self.uUseTexture,  0)
         GL.glUniform1i(self.uTexIsSRGB,   1)
-        GL.glUniform1i(self.uAlbedoTex,   0)
 
-    def set_each(self, model: glm.mat4, rgba: tuple): #オブジェクトごと
+    def set_each(self, obj): #オブジェクトごと
+        model = obj.model_mat
+        rgba = obj.color
+        GL.glUseProgram(self.prog)
         GL.glUniformMatrix4fv(self.uModel, 1, False, glm.value_ptr(model)) # uModel
         nmat = glm.mat3(glm.transpose(glm.inverse(glm.mat3(model)))) 
         GL.glUniformMatrix3fv(self.uNormalMatrix, 1, False, glm.value_ptr(nmat)) # uNormalMatrix非一様スケール対応
         GL.glUniform4f(self.uColor, *rgba) # uColor
         
+        # テクスチャ
+        if obj.use_tex:
+            GL.glUniform1i(self.uUseTexture, 1)
+        else:
+            GL.glUniform1i(self.uUseTexture, 0)
+        
+    def draw(self, obj) -> None:
+        """
+        OpenGL描画処理。バッファ転送や属性設定も含む。
+        xp/npを引数で指定しCuPy/NumPy両対応。
+        """
+        if obj.use_tex and self.uTex != -1:
+            # bind
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, obj.texture_id)
+            # サンプラにユニット0を通知
+            GL.glUniform1i(self.uTex, 0)
+
+            # draw
+            if obj.line_indices.size > 0:
+                obj.geo.draw_elements(GL.GL_LINES, "lines")
+            if obj.tri_indices.size > 0:
+                obj.geo.draw_elements(GL.GL_TRIANGLES, "tris")
+
+            # unbind
+            GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+        else:
+            # 非テクスチャ物体
+            if obj.line_indices.size > 0:
+                obj.geo.draw_elements(GL.GL_LINES, "lines")
+            if obj.tri_indices.size > 0:
+                obj.geo.draw_elements(GL.GL_TRIANGLES, "tris")
+            
     def init_checkerboard(self):
         # シェーダファイル（中に CK_MIN/CK_MAX/CK_CELL/COLORS を const で記述）
         self.checker_prog = build_GLProgram(vert_filename="Checker.vert", frag_filename="Checker.frag")
@@ -89,7 +122,7 @@ class Renderer:
         self.checker_geo = geo
         
     def draw_checkerboard(self, view: glm.mat4, proj: glm.mat4):
-        if self.checker_prog is None or self.checker_geo is None:
+        if self.checker_prog is None or self.checker_geo is None or not param_changable["checkerboard"]:
             return
         GL.glUseProgram(self.checker_prog)
         GL.glUniformMatrix4fv(self.checker_uView, 1, False, glm.value_ptr(view))

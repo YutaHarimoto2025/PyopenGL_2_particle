@@ -3,7 +3,7 @@ import glm
 from typing import Optional, Tuple, Any
 import math
 
-from tools import xp, np, xpFloat, xpInt, npFloat, npInt, rngnp
+from tools import xp, np, xpFloat, xpInt, npFloat, npInt, rngnp, param_changable, param
 from graphic_tools import compute_normals  
 from object3d import Object3D
 
@@ -86,6 +86,20 @@ def create_balls(
         obj_list.append(obj)
     return obj_list
 
+def oneball_center(radius: float = 0.5) ->list:
+    vertices, tri_indices = get_oneball_vertices_faces(subdiv=3, radius=radius)
+    obj = Object3D(
+        vertices=vertices,
+        tri_indices=tri_indices,
+        color=(1.0, 0.5, 1.0),
+        name="ball",
+        name_posi_local=(0, 0, 0),
+        posi=(0, 0, radius),
+        is_move=True,
+        texture_path=param_changable["ball_texture"]
+    )
+    return [obj]
+
 def create_boxes(scale=(1, 1, 1)) -> list:
     """
     一辺1の直方体。各面ごとに頂点を独立させ、UV(0..1)を割り当てる。
@@ -155,7 +169,6 @@ def create_boxes(scale=(1, 1, 1)) -> list:
         name="box",
         name_posi_local=(0,0,0),
     )
-    print(len(TRI), "triangles, ", len(LINES), "lines")
     obj_list.append(box)
     return obj_list
 

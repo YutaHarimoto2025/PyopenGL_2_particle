@@ -93,13 +93,13 @@ class GLWidget(QOpenGLWidget):
         
         # --- オブジェクトの描画 ---
         for obj in self.phys.objects:
-            self.renderer.set_each(obj.model_mat, obj.color)   # uModel / uNormalMatrix / uColor             # uColor
+            self.renderer.set_each(obj)   # uModel / uNormalMatrix / uColor             # uColor
             if obj.name == "box":
                 GL.glDisable(GL.GL_CULL_FACE)
-                obj.draw() #両面描く
+                self.renderer.draw(obj) #両面描く
                 GL.glEnable(GL.GL_CULL_FACE)
             else:
-                obj.draw()
+                self.renderer.draw(obj)
 
         # --- QPainterでラベル描画 ---
         if self.show_labels:

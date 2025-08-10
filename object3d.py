@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Any
 import math
 
 from tools import xp, np, xpFloat, xpInt, npFloat, npInt
-from graphic_tools import compute_normals, GLGeometry
+from graphic_tools import compute_normals, GLGeometry, compute_uvs, load_texture
 
 class Object3D:
     """
@@ -18,6 +18,7 @@ class Object3D:
         line_indices: np.ndarray|list|None = None,
         tri_indices: np.ndarray|list|None = None,
         uvs: np.ndarray|None= np.empty((0, 2), dtype=np.float32),
+        uv_mode: str = "auto",  #UVのモード指定（auto/box/spherical/cylindrical）
         posi: Tuple[float, float, float] = (0, 0, 0), # 世界座標
         rot: glm.quat|None=None,
         color: Tuple[float, float, float, float] = (1, 1, 1, 1), #白
@@ -25,18 +26,39 @@ class Object3D:
         name_posi_local: Tuple[float, float, float] = (0, 0, 0), #ローカル座標
         is_move: bool = True,
         name: str = "",
+        texture_path:str = None
     ) -> None:
-        # --- CuPy/NumPy配列型で受け取りfloat32/uint32で型変換 ---
+        
         self.vertices = np.asarray(vertices)
         self.line_indices = np.asarray(line_indices) if line_indices is not None else np.asarray(npInt([]))
         self.tri_indices = np.asarray(tri_indices) if tri_indices is not None else np.asarray(npInt([]))
         # print(name, color, posi)
         self.normals = compute_normals(self.vertices, self.tri_indices.reshape(-1, 3)) if len(self.tri_indices) > 0 else np.asarray(npFloat([])) # 法線ベクトル計算
-        self.uvs = npFloat(uvs)
+
+        # --------- UV（未指定なら共通ロジックで自動生成）----------
+        if uvs is None or (hasattr(uvs, "size") and uvs.size == 0):
+            try:
+                tri = self.tri_indices.reshape(-1, 3) if len(self.tri_indices) > 0 else None
+                self.uvs = compute_uvs(self.vertices, tri_indices=tri,
+                                       normals=self.normals if self.normals.size else None,
+                                       mode=uv_mode)
+            except Exception:
+                # 予防的フォールバック（最低限の0埋め）
+                self.uvs = np.zeros((len(self.vertices), 2), dtype=np.float32)
+        else:
+            self.uvs = npFloat(uvs)
+            
         if self.uvs.ndim != 2 or self.uvs.shape[1] != 2:
             raise ValueError(f"uvs must have shape (N,2), but got {self.uvs.shape}")
         if self.uvs.shape[0] not in (0, self.vertices.shape[0]):
             raise ValueError(f"uv count {self.uvs.shape[0]} does not match vertex count {self.vertices.shape[0]}")
+        # ----------------------------------------------------------
+        if texture_path is not None:
+            self.texture_id = load_texture(texture_path)  # GLコンテキスト有効時に呼ぶ
+            self.use_tex = bool(self.texture_id) #ロード成功したらTrue
+        else:
+            self.texture_id = None
+            self.use_tex = False
         self.color = (*color, 1.0) if len(color) == 3 else color if len(color) == 4 else (_ for _ in ()).throw(ValueError("Color must be a tuple of 3 or 4 floats"))
 
         self.name = name
@@ -87,16 +109,6 @@ class Object3D:
                     * glm.mat4_cast(self.rotation)
                     * glm.scale(glm.mat4(1), self.scale)
                 )
-
-    def draw(self) -> None:
-        """
-        OpenGL描画処理。バッファ転送や属性設定も含む。
-        xp/npを引数で指定しCuPy/NumPy両対応。
-        """
-        if self.line_indices.size > 0:
-            self.geo.draw_elements(GL.GL_LINES, "lines")
-        if self.tri_indices.size > 0:
-            self.geo.draw_elements(GL.GL_TRIANGLES, "tris")
 
     def localframe_to_window(
         self, view: glm.mat4, proj: glm.mat4, viewport_size: Tuple[int, int]

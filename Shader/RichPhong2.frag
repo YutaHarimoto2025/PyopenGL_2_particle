@@ -26,7 +26,7 @@ uniform float uRimExponent  = 1.0;   // リムの立ち上がり（1=線形, 大
 
 // === 追加: UVベース（テクスチャ/チェッカー） ===
 uniform int   uUseTexture   = 0;     // 0:使わない, 1:使う
-uniform sampler2D uAlbedoTex;
+uniform sampler2D uTex; 
 uniform int   uTexIsSRGB    = 1;     // 1: テクスチャはsRGB → 線形に直す
 uniform int   uUseUVChecker = 0;     // 0:使わない, 1:使う
 uniform float uUVCell       = 1.0;   // チェッカーのセル幅（UV空間）
@@ -61,7 +61,7 @@ vec3 makeBaseColor(){
     vec3 base = uColor.rgb;
 
     if(uUseTexture == 1){
-        vec4 tex = texture(uAlbedoTex, v_uv);
+        vec4 tex = texture(uTex, v_uv);
         vec3 albedo = tex.rgb;
         if(uTexIsSRGB == 1){
             // sRGB→線形  (uGamma=2.2想定。別に uTexGamma を作ってもOK)
