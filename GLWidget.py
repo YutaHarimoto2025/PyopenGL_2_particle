@@ -31,7 +31,7 @@ class GLWidget(QOpenGLWidget):
         super().__init__(parent)
         self.total_frame: int = 0                # 保存する総フレーム数
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
-        self.show_labels: bool = True  # ラベル表示フラグ
+        self.show_labels: bool = False  # ラベル表示フラグ
         self.radius: float = 1.0  # 半径（スライダーで調整，未使用）
         
         self.previous_frameCount:int = 0

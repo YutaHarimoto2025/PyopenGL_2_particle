@@ -147,18 +147,14 @@ class MainWindow(QMainWindow):
         update_param_changable()  # パラメータの更新
         # 新しいfps値でタイマー再設定, 厳密に同じにはならない
         self.gl.ctrl_fps_timer.start(max(5, 1000 // int(param_changable["fps"])))
-
+        if hasattr(self.gl.phys, "one_ball") and self.gl.phys.one_ball:
+            self.gl.phys.one_ball[0].update_texture(param_changable["ball_texture"])
 
 # --- エントリーポイント ---
 if __name__ == "__main__":
     # 垂直同期切ってfps爆速になる魔法　#普段はディスプレイのfpsと同じがやや遅いか
     format = QSurfaceFormat()
     format.setSwapInterval(0)  # VSyncオフ
-    # format.setRenderableType(QSurfaceFormat.OpenGL)
-    # format.setVersion(3, 3)
-    # format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
-    # format.setDepthBufferSize(24)
-    # format.setSamples(4)  # 任意：ジャギー軽減
     QSurfaceFormat.setDefaultFormat(format)
     
     app = QApplication(sys.argv)

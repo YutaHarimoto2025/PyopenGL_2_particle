@@ -92,7 +92,7 @@ def oneball_center(radius: float = 0.8) ->list:
         vertices=vertices,
         tri_indices=tri_indices,
         uv_mode = "spherical",
-        color=(0.2, 0.2, 0.8), # 青
+        color= (1.0, 1.0, 1.0), #(0.2, 0.2, 0.8), # 青
         name="ball",
         name_posi_local=(0, 0, 0),
         posi=(0, 0, radius),
@@ -163,12 +163,13 @@ def create_boxes(scale=(1, 1, 1)) -> list:
         vertices=V,
         line_indices=LINES,
         tri_indices=TRI,
-        uvs=UV, #!指定しなくても自動生成される？
+        # uvs=UV, #!指定しなくても自動生成される？
         posi=(0.5, 0.5, 0.5),
         color=color,
         scale=scale,
         name="box",
         name_posi_local=(0,0,0),
+        # texture_path=param_changable["box_texture"],
     )
     obj_list.append(box)
     return obj_list

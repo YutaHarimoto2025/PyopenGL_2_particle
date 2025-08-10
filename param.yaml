@@ -1,6 +1,6 @@
-is_saving: true #動画やログを保存するかどうか
-save_dir: "result" #result_local
-case_name: "earth"
+is_saving: false #動画やログを保存するかどうか
+save_dir: "result_test" #result_local
+case_name: ""
 movie:
   fps: 50
   total_sec: 15

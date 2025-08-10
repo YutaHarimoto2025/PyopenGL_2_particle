@@ -59,12 +59,7 @@ class Object3D:
                 self.vertices, self.normals, self.uvs, self.tri_indices
             )
         # ----------------------------------------------------------
-        if texture_path is not None:
-            self.texture_id = load_texture(texture_path)  # GLコンテキスト有効時に呼ぶ
-            self.use_tex = bool(self.texture_id) #ロード成功したらTrue
-        else:
-            self.texture_id = None
-            self.use_tex = False
+        self.update_texture(texture_path)  # テクスチャの更新
         self.color = (*color, 1.0) if len(color) == 3 else color if len(color) == 4 else (_ for _ in ()).throw(ValueError("Color must be a tuple of 3 or 4 floats"))
 
         self.name = name
@@ -95,6 +90,21 @@ class Object3D:
             self.geo.set_elements("tris",  self.tri_indices)
         
         GL.glBindVertexArray(0)
+        
+    def update_texture(self, texture_path: str|None) -> None:
+        if texture_path is not None:
+            texture_id_temp = load_texture(texture_path)  # GLコンテキスト有効時に呼ぶ
+            if texture_id_temp is not None:  # None や 0 でなければ成功
+                self.texture_id = texture_id_temp
+                self.use_tex = bool(self.texture_id) #ロード成功したらTrue
+            else:
+                print(f"Failed to load texture from {texture_path}")
+                if not hasattr(self, "texture_id"): #初回だけ
+                    self.texture_id = None
+                    self.use_tex = False
+        else:
+            self.texture_id = None
+            self.use_tex = False
 
     def update_posi_rot(self, dt: float) -> None:
         if not self.is_move:
