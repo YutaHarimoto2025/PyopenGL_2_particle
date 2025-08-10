@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Any
 import math
 
 from tools import xp, np, xpFloat, xpInt, npFloat, npInt
-from graphic_tools import compute_normals, GLGeometry, compute_uvs, load_texture
+from graphic_tools import compute_normals, GLGeometry, compute_uvs, load_texture, seam_split
 
 class Object3D:
     """
@@ -52,6 +52,12 @@ class Object3D:
             raise ValueError(f"uvs must have shape (N,2), but got {self.uvs.shape}")
         if self.uvs.shape[0] not in (0, self.vertices.shape[0]):
             raise ValueError(f"uv count {self.uvs.shape[0]} does not match vertex count {self.vertices.shape[0]}")
+        
+        if self.tri_indices.size > 0:
+            # 球/円柱のときだけでもOK。まずは常にU方向の継ぎ目対策を適用して問題なし。
+            self.vertices, self.normals, self.uvs, self.tri_indices = seam_split(
+                self.vertices, self.normals, self.uvs, self.tri_indices
+            )
         # ----------------------------------------------------------
         if texture_path is not None:
             self.texture_id = load_texture(texture_path)  # GLコンテキスト有効時に呼ぶ
@@ -97,7 +103,7 @@ class Object3D:
             # self.position += glm.vec3(0, 0, dt * 0.1)  # Z軸方向に移動
             
             d_angle = glm.radians(dt * 60)
-            dq = glm.angleAxis(d_angle, glm.vec3(0, 1, 0)) # 回転軸はY軸
+            dq = glm.angleAxis(d_angle, glm.vec3(0, 0, 1)) # 回転軸はZ軸
             self.rotation = dq * self.rotation  # クォータニオンの積で回転　演算は非可換
     
     def update_model_matrix(self, init_flag=False) -> None:

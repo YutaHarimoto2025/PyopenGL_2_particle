@@ -1,9 +1,9 @@
-is_saving: false #動画やログを保存するかどうか
-save_dir: "result_test" #result_local
+is_saving: true #動画やログを保存するかどうか
+save_dir: "result" #result_local
+case_name: "earth"
 movie:
-  # filename: "out.mp4"
   fps: 50
-  total_sec: 10
+  total_sec: 15
 
 seed: 42
 
@@ -11,5 +11,5 @@ shader:
   vert: Phong.vert # 頂点シェーダパス
   frag: RichPhong2.frag # フラグメントシェーダパス
 
-window_width: 1000
-window_height: 1000
+window_width: 1600
+window_height: 900

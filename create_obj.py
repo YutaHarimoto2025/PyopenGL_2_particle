@@ -86,12 +86,13 @@ def create_balls(
         obj_list.append(obj)
     return obj_list
 
-def oneball_center(radius: float = 0.5) ->list:
+def oneball_center(radius: float = 0.8) ->list:
     vertices, tri_indices = get_oneball_vertices_faces(subdiv=3, radius=radius)
     obj = Object3D(
         vertices=vertices,
         tri_indices=tri_indices,
-        color=(1.0, 0.5, 1.0),
+        uv_mode = "spherical",
+        color=(0.2, 0.2, 0.8), # 青
         name="ball",
         name_posi_local=(0, 0, 0),
         posi=(0, 0, radius),
@@ -162,7 +163,7 @@ def create_boxes(scale=(1, 1, 1)) -> list:
         vertices=V,
         line_indices=LINES,
         tri_indices=TRI,
-        uvs=UV,
+        uvs=UV, #!指定しなくても自動生成される？
         posi=(0.5, 0.5, 0.5),
         color=color,
         scale=scale,

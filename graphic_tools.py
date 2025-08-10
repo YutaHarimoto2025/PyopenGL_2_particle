@@ -63,11 +63,39 @@ def load_texture(figpath):
     GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT)
 
     GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, width, height, 0,
-                 GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, img_data)
+                 GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, img_data) #画像をGPU目盛りにコピー
     GL.glGenerateMipmap(GL.GL_TEXTURE_2D)
 
     GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
     return tex
+
+def seam_split(positions, normals, uvs, faces):
+    """説明文
+    U方向の継ぎ目を分割して、UVが[0,1]範囲に収まるようにする。"""
+    faces = faces.reshape(-1, 3)
+    
+    P = positions.tolist()
+    N = normals.tolist() if normals is not None and len(normals) else None
+    UV = uvs.tolist()
+    new_faces = []
+    for (i,j,k) in faces:
+        us = [UV[i][0], UV[j][0], UV[k][0]]
+        if max(us) - min(us) > 0.5:
+            tri = []
+            for idx in (i,j,k):
+                u,v = UV[idx]
+                if u < 0.5:
+                    P.append(positions[idx].tolist())
+                    if N is not None: N.append(normals[idx].tolist())
+                    UV.append([u+1.0, v])
+                    tri.append(len(P)-1)
+                else:
+                    tri.append(idx)
+            new_faces.append(tri)
+        else:
+            new_faces.append([i,j,k])
+    return np.array(P, np.float32), (np.array(N, np.float32) if N is not None else None), \
+           np.array(UV, np.float32), np.array(new_faces, np.uint32)
 
 class GLGeometry:
     """
@@ -136,15 +164,29 @@ def _bbox(vertices: np.ndarray):
     size = np.maximum(vmax - vmin, 1e-6)  # ゼロ割回避
     return vmin, vmax, size
 
-def _uv_spherical(vertices: np.ndarray, center: np.ndarray | None = None) -> np.ndarray:
+def _uv_spherical(vertices: np.ndarray,
+                  center: np.ndarray | None = None,
+                  up_axis: str = "z",
+                  rot_deg: float = 0.0) -> np.ndarray:
     if center is None:
         center = vertices.mean(axis=0)
     p = vertices - center
     n = _normalize_rows(p)
-    # u = (atan2(z,x)+π)/(2π), v = 0.5 - asin(y)/π
-    theta = np.arctan2(n[:, 2], n[:, 0])
-    u = (theta + math.pi) / (2.0 * math.pi)
-    v = 0.5 - (np.arcsin(n[:, 1]) / math.pi)
+    # 経線基準の回転（任意）
+    rot = math.radians(rot_deg) #初期角
+
+    if up_axis == "z":
+        theta = np.arctan2(n[:, 1], n[:, 0]) + rot   # (y,x)
+        lat   = np.arcsin(n[:, 2])                   # z が上
+    elif up_axis == "x":
+        theta = np.arctan2(n[:, 2], n[:, 1]) + rot   # (z,y)
+        lat   = np.arcsin(n[:, 0])                   # x が上
+    else:  # "y" デフォルト
+        theta = np.arctan2(n[:, 2], n[:, 0]) + rot   # (z,x)
+        lat   = np.arcsin(n[:, 1])                   # y が上
+
+    u = (theta + math.pi) / (2.0 * math.pi)          # 0..1
+    v = 0.5 - (lat / math.pi)                        # 0..1（北=0, 南=1）
     return np.stack([u, v], axis=1).astype(np.float32)
 
 def _uv_cylindrical(vertices: np.ndarray, axis: int | None = None) -> np.ndarray:

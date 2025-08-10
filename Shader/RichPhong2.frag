@@ -61,7 +61,11 @@ vec3 makeBaseColor(){
     vec3 base = uColor.rgb;
 
     if(uUseTexture == 1){
-        vec4 tex = texture(uTex, v_uv);
+        vec2 uv = v_uv;
+        uv.x = fract(uv.x);
+        uv.y = clamp(uv.y, 0.0, 1.0);
+        vec4 tex = texture(uTex, uv);
+
         vec3 albedo = tex.rgb;
         if(uTexIsSRGB == 1){
             // sRGB→線形  (uGamma=2.2想定。別に uTexGamma を作ってもOK)
@@ -108,7 +112,6 @@ void main(){
     }
 
     // テクスチャアルファを使う場合はここで掛ける：
-    // float alpha = uColor.a * (uUseTexture == 1 ? texture(uAlbedoTex, v_uv).a : 1.0);
     float alpha = uColor.a;
 
     FragColor = vec4(col, alpha);

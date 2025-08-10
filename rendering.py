@@ -20,7 +20,7 @@ class Renderer:
             # 追加（マテリアル/ライティング）
             "uDiffuse", "uLightColor", "uAmbient", "uSpecularStr", "uShininess",
             # 追加（UV/テクスチャ）
-            "uUseTexture", "uAlbedoTex", "uTexIsSRGB", "uTex",
+            "uUseTexture", "uTexIsSRGB", "uTex",
             "uUseUVChecker", "uUVCell", "uUVColor1", "uUVColor2",
         }
         self._get_uniform_loc(prog=self.prog, names=uniform_names)  
