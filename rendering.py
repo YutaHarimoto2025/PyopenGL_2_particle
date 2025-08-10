@@ -18,8 +18,7 @@ class Renderer:
             "uLightPos", "uColor", "uShadingMode",
             "uRimStrength", "uGamma", "uNormalMatrix",
             # 追加（マテリアル/ライティング）
-            "uAmbient", "uSpecularStr", "uShininess",
-            "uRimColor", "uRimExponent",
+            "uDiffuse", "uLightColor", "uAmbient", "uSpecularStr", "uShininess",
             # 追加（UV/テクスチャ）
             "uUseTexture", "uAlbedoTex", "uTexIsSRGB",
             "uUseUVChecker", "uUVCell", "uUVColor1", "uUVColor2",
@@ -29,9 +28,19 @@ class Renderer:
         #その他のset up
         GL.glEnable(GL.GL_DEPTH_TEST); GL.glDepthFunc(GL.GL_LESS)
         GL.glEnable(GL.GL_FRAMEBUFFER_SRGB)
-        GL.glEnable(GL.GL_CULL_FACE); GL.glCullFace(GL.GL_BACK) #閉じたメッシュならON
-        #todo 黄色はcull diableがいい（閉じてない）が，球はenableがいい（開いている）
-        GL.glEnable(GL.GL_BLEND)
+        GL.glEnable(GL.GL_CULL_FACE); #スクリーン上で反時計回りが表面，ウラ面を描画しない
+        GL.glCullFace(GL.GL_BACK) # #ウラ面を描画しない　＃GL_CULL_FACEのデフォ
+        GL.glFrontFace(GL.GL_CCW) # 反時計回りが表面 #GL_CULL_FACEのデフォ
+        GL.glDepthMask(GL.GL_TRUE)   
+        GL.glDisable(GL.GL_BLEND)
+        
+        # GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL) # ポリゴンモードを確認（塗りつぶし）
+        # GL.glEnable(GL.GL_DEPTH_CLAMP) # 深度クランプを有効化（オプション）
+    
+        # 透明なものを描く
+        # GL.glEnable(GL.GL_BLEND)
+        # GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+        # 必要なら奥→手前の順にソート描画
 
     def set_common(self, cam_posi, view, proj): #オブジェクト共通
         GL.glUseProgram(self.prog)
@@ -44,15 +53,15 @@ class Renderer:
         GL.glUniform1f(self.uGamma, 1.4)        # 1で補正なし，<1で暗くなる， >1で明るくなる
         
         # 追加：マテリアル/ライティングの既定値
-        GL.glUniform1f(self.uAmbient,     0.20)
+        GL.glUniform1f(self.uDiffuse, 0.4) #拡散反射
+        GL.glUniform3f(self.uLightColor, 1.0, 1.0, 1.0)
+        GL.glUniform1f(self.uAmbient,     0.50) #ここでの設定がglslより優先される
         GL.glUniform1f(self.uSpecularStr, 0.25)
         GL.glUniform1f(self.uShininess,   32.0)
-        GL.glUniform3f(self.uRimColor,    1.0, 1.0, 1.0)
-        GL.glUniform1f(self.uRimExponent, 1.0)
 
         # UV/テクスチャ関連の初期化 OFF
         GL.glUniform1i(self.uUseUVChecker, 0)
-        GL.glUniform1f(self.uUVCell,       1.0)
+        GL.glUniform1f(self.uUVCell,       0.01)
         GL.glUniform3f(self.uUVColor1,     0.92, 0.92, 0.92)
         GL.glUniform3f(self.uUVColor2,     0.08, 0.08, 0.08)
 

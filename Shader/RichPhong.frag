@@ -29,6 +29,7 @@ vec3 toon(vec3 N, vec3 L){
 
 void main(){
     vec3 N = normalize(vNormal);
+    if (!gl_FrontFacing) N = -N;  // 裏面は法線反転
     vec3 L = normalize(uLightPos - vFragPos);
     vec3 V = normalize(uViewPos  - vFragPos);
 

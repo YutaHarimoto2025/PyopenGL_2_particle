@@ -14,9 +14,11 @@ uniform float uRimStrength;    // 0..1
 uniform float uGamma;          // 例: 2.2（>0 のときsRGBエンコード）
 
 // === 追加: マテリアル/ライティング調整 ===
+uniform vec3  uLightColor   = vec3(1.0); // ライトの色（白）
 uniform float uAmbient      = 0.20;  // 環境光
 uniform float uSpecularStr  = 0.25;  // 鏡面強度
 uniform float uShininess    = 32.0;  // ハイライト鋭さ
+uniform float uDiffuse      = 1.0;  // 拡散反射の強さ
 
 // === 追加: リムライト調整（色/カーブ） ===
 uniform vec3  uRimColor     = vec3(1.0);
@@ -32,11 +34,20 @@ uniform vec3  uUVColor1     = vec3(0.92);
 uniform vec3  uUVColor2     = vec3(0.08);
 
 vec3 phong(vec3 base, vec3 N, vec3 L, vec3 V){
+    // 拡散反射
     float diff = max(dot(N, L), 0.0);
-    // Blinn-Phong（安定しやすい）
-    vec3  H    = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), uShininess) * uSpecularStr;
-    return base * (uAmbient + diff) + vec3(1.0) * spec;
+    vec3 diffuse  = uDiffuse * diff * base * uLightColor;
+
+    // 環境光
+    vec3 ambient  = uAmbient * base * uLightColor;
+
+    // 鏡面反射（Blinn-Phong）
+    vec3  H       = normalize(L + V);
+    float specVal = pow(max(dot(N, H), 0.0), uShininess);
+    vec3 specular = uSpecularStr * specVal * uLightColor;
+
+    // 合成
+    return ambient + diffuse + specular;
 }
 
 vec3 toon(vec3 base, vec3 N, vec3 L){
@@ -69,6 +80,11 @@ vec3 makeBaseColor(){
 
 void main(){
     vec3 N = normalize(vNormal);
+    // if (!gl_FrontFacing) N = -N;  // 裏面は法線反転 透けてみえる
+    if (!gl_FrontFacing) {
+        discard;  // 裏面のピクセルを描画しない
+    }
+
     vec3 L = normalize(uLightPos - vFragPos);
     vec3 V = normalize(uViewPos  - vFragPos);
 
