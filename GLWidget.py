@@ -40,8 +40,8 @@ class GLWidget(QOpenGLWidget):
         self.appended_object = []
         self.removed_object_idx = []
         self._ray_show = False
-        self._ray_ro = glm.vec3(0, 0, 0)  # レイの始点終点仮設定
-        self._ray_end = glm.vec3(0, 0, 0)
+        self._ray_p0 = glm.vec3(0, 0, 0)  # レイの始点終点仮設定
+        self._ray_p1 = glm.vec3(0, 0, 0)
         
         #　球生成，レイキャスト用の平面
         self.plane_point  = glm.vec3(0,0,0)
@@ -56,6 +56,7 @@ class GLWidget(QOpenGLWidget):
         self.renderer.init_checkerboard() 
         self.renderer.init_ray() 
         
+        self.setMouseTracking(True) #クリックしなくてもマウス移動イベントを受け取れる
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)
         self.frameCount = 0
@@ -98,7 +99,7 @@ class GLWidget(QOpenGLWidget):
         self.renderer.set_common(cam_posi, self.view, self.proj)
         self.renderer.draw_checkerboard(self.view, self.proj) 
         if self._ray_show:
-            self.renderer.draw_ray(self.view, self.proj, self._ray_ro, self._ray_end)
+            self.renderer.draw_ray(self.view, self.proj, self._ray_p0, self._ray_p1)
 
         current_time = time.perf_counter()
         t = current_time - self.start_time  # 経過時間 [秒]
@@ -168,14 +169,13 @@ class GLWidget(QOpenGLWidget):
         P = _ray_hit_plane(ro, rd, plane_point=self.plane_point, plane_normal=self.plane_normal)
         
         if P is None:
-            L = 100.0  # シーンスケールに合わせて
-            end = ro + rd * L
+            if self._ray_show:
+                self._ray_show = False
+            return
         else:
-            end = P
-
-        self._ray_ro  = ro
-        self._ray_end = end
-        self._ray_show = True
+            self._ray_p0, self._ray_p1 = P, P+ self.plane_normal * 0.5
+            if not self._ray_show:
+                self._ray_show = True
         
     def mousePressEvent(self, event: QMouseEvent) -> None:
         try:
@@ -193,7 +193,10 @@ class GLWidget(QOpenGLWidget):
                 P = _ray_hit_plane(ro, rd, plane_point=self.plane_point, plane_normal=self.plane_normal)  # checkerboard面
                 if P is None:
                     return
-                if glm.length(P - self.plane_point) > param_changable["checkerboard"]["length"]:
+                
+                # if glm.length(P - self.plane_point) > param_changable["checkerboard"]["length"]:
+                if abs(P.x - self.plane_point.x) > param_changable["checkerboard"]["length"] or abs(P.y - self.plane_point.y) > param_changable["checkerboard"]["length"]:
+                    # planeがz=0の場合だけでちゃんと機能する
                     print("hit point is too far from origin, skipping")
                     return
                 r = float(self.radius)  # スライダーで更新される半径
@@ -239,7 +242,6 @@ class GLWidget(QOpenGLWidget):
                         hit_t = t
                         hit_idx = obj.obj_id
                         removed_obj = obj
-                print(hit_idx)
                 if hit_idx >= 0:
                     self.makeCurrent()
                     removed_obj.destroy_gpuBuffer()

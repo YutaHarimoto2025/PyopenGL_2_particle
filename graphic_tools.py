@@ -41,6 +41,7 @@ def build_GLProgram(vert_filename: str, frag_filename: str) -> int:
             raise RuntimeError(info)
         return prog
     
+
 # --- GLSLシェーダ読込 ---
 def load_shader(filename: str) -> str:
     """

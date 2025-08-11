@@ -13,6 +13,7 @@ from tools import param, param_changable, update_param_changable, create_periodi
 
 # Ensure X11 platform for stability
 # os.environ.setdefault("QT_QPA_PLATFORM", "xcb") #GLSLベースだとこれは使っちゃだめ
+# os.environ.setdefault("QT_OPENGL", "desktop")
 os.environ.setdefault("XDG_SESSION_TYPE", "x11")
 os.environ.setdefault("GDK_BACKEND", "x11")
 
@@ -157,6 +158,9 @@ class MainWindow(QMainWindow):
 # --- エントリーポイント ---
 if __name__ == "__main__":
     format = QSurfaceFormat()
+    format.setVersion(3, 0) # OpenGL 3.3 Core Profile
+    format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+    format.setDepthBufferSize(24) # 深度バッファのビット数
     format.setSamples(4) #アンチエイリアスのサンプル数 
     format.setSwapInterval(0) # 垂直同期切ってfps爆速になる魔法，普段はディスプレイのfpsと同じがやや遅いか
     # format.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer) #ダブルバッファでなめらかに
