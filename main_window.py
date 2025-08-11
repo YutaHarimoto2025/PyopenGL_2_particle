@@ -125,11 +125,11 @@ class MainWindow(QMainWindow):
         self.status.showMessage("初期状態をランダマイズしてリセットしました")
         self.gl.update()    
 
-    def _update_status(self, count:int) -> None:
+    def _update_status(self, count:int, text:str) -> None:
         """
         GLWidgetからのコールバックで座標やオブジェクト数を表示・リスト更新。
         """
-        self.status.showMessage(f"オブジェクト数: {count}") #クリック位置: ({x:.2f}, {y:.2f}) | 
+        self.status.showMessage(f"{text} | オブジェクト数: {count}") #クリック位置: ({x:.2f}, {y:.2f}) | 
         self.list_widget.clear()
         for i, obj in enumerate(self.gl.phys.objects, start=1):
             self.list_widget.addItem(f"{obj.name}: ({obj.position.x:.2f}, {obj.position.y:.2f}, {obj.position.z:.2f})")

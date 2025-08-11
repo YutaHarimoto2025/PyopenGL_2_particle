@@ -11,8 +11,8 @@ from pathlib import Path
 import time
 
 from tools import xp, np, create_periodic_timer, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
-from graphic_tools import load_shader
-from create_obj import create_boxes, create_axes  # オブジェクト生成はここに分離
+from graphic_tools import load_shader, compute_normals, _ray_hit_plane, _ray_hit_sphere  # シェーダ読み込み、法線計算、レイキャスト
+from create_obj import create_boxes, create_axes, get_oneball_vertices_faces  # オブジェクト生成はここに分離
 from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffepeg import MovieFFmpeg
 from physics import Physics  # 物理シミュレーションデータ
@@ -33,9 +33,12 @@ class GLWidget(QOpenGLWidget):
         self.total_frame: int = 0                # 保存する総フレーム数
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
         self.show_labels: bool = False  # ラベル表示フラグ
-        self.radius: float = 1.0  # 半径（スライダーで調整，未使用）
+        self.radius: float = 1.0  # 半径（スライダーで調整）
         
         self.previous_frameCount:int = 0
+        
+        self.appended_object = []
+        self.removed_object_idx = []
 
     def initializeGL(self) -> None:
         """
@@ -75,23 +78,27 @@ class GLWidget(QOpenGLWidget):
 
         # 透視投影行列
         cam_posi = glm.vec3(2, -2, 2)  # カメラ位置
-        view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
-        proj = glm.perspective(glm.radians(param_changable["fov"]), self.aspect, 0.01, 100.0) #視野角， アスペクト比，近接面，遠方面
+        self.view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
+        self.proj = glm.perspective(glm.radians(param_changable["fov"]), self.aspect, 0.01, 100.0) #視野角， アスペクト比，近接面，遠方面
         
         # 正射影
         # cam_posi = glm.vec3(0, 0, 10)
-        # view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,1,0))
-        # proj = glm.ortho(-5.0, 5.0, -5.0, 5.0, 0.01, 100.0)
+        # self.view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,1,0))
+        # self.proj = glm.ortho(-5.0, 5.0, -5.0, 5.0, 0.01, 100.0)
         
-        self.renderer.set_common(cam_posi, view, proj)
-        self.renderer.draw_checkerboard(view, proj) 
+        self.renderer.set_common(cam_posi, self.view, self.proj)
+        self.renderer.draw_checkerboard(self.view, self.proj) 
 
         current_time = time.perf_counter()
         t = current_time - self.start_time  # 経過時間 [秒]
         dt_frame = current_time - self.previous_time  # 前フレームからの経過時間 [秒]
         # print(dt_frame)
-        self.phys.update_objects(t, dt_frame)  # 物理シミュレーションの更新
         
+        # --- シミュレーション更新 ---
+        self.phys.update_objects(t, dt_frame, appended=self.appended_object, removed_ids=self.removed_object_idx)
+        self.appended_object.clear()
+        self.removed_object_idx.clear()
+
         # --- オブジェクトの描画 ---
         for obj in self.phys.objects:
             self.renderer.set_each(obj)   # uModel / uNormalMatrix / uColor             # uColor
@@ -108,7 +115,7 @@ class GLWidget(QOpenGLWidget):
             font = QFont("Noto Sans CJK JP", 16, QFont.Weight.Normal)
             painter.setFont(font)
             for obj in self.phys.objects:
-                pos = obj.localframe_to_window(view, proj, (self.width(), self.height()))
+                pos = obj.localframe_to_window(self.view, self.proj, (self.width(), self.height()))
                 r, g, b, a = [int(c*255) for c in obj.color]
                 path = QPainterPath()
                 path.addText(pos[0], pos[1], painter.font(), obj.name)
@@ -134,8 +141,87 @@ class GLWidget(QOpenGLWidget):
         
     # ‑‑‑ Interaction
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
+        text =""
+        try:
+            mods = event.modifiers()
+            is_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+
+            if not is_ctrl:
+                return
+            
+            text +="Ctrlキー付きクリックイベント, "
+            #以降はctrlキー押下時の処理
+            x, y = float(event.position().x()), float(event.position().y()) #マウスのqt座標
+            ro, rd = self._make_ray(x, y)
+            
+            if event.button() == Qt.MouseButton.LeftButton: #左クリック
+                # === 生成 ===
+                plane_point  = glm.vec3(0,0,0)
+                plane_normal = glm.vec3(0,0,1)
+                P = _ray_hit_plane(ro, rd, plane_point=plane_point, plane_normal=plane_normal)  # checkerboard面
+                if P is None:
+                    return
+                r = float(self.radius)  # スライダーで更新される半径
+                center = P+ plane_normal * r  # 平面上の点から半径分だけ上にずらす
+
+                vertices, tri_indices = get_oneball_vertices_faces(subdiv=2, radius=r)
+
+                # Object3D を生成して配置（動かさない）
+                ball = Object3D(
+                    vertices=vertices,
+                    tri_indices=tri_indices,
+                    color=(1.0, 0.5, 1.0),
+                    posi=(center.x, center.y, center.z),
+                    radius=r,
+                    is_move=True,
+                    name="ball",
+                    uv_mode="spherical",  # 球面UV
+                )
+                # 次のpaintGLで追加するリストへ登録
+                self.appended_object.append(ball)
+                text += "球を生成しました"
+                
+            elif event.button() == Qt.MouseButton.RightButton: #右クリック
+                # === 削除（レイ上で最初に当たる球） ===
+                hit_idx = -1
+                hit_t = float("inf")
+
+                for obj in enumerate(self.phys.objects):
+                    if getattr(obj, "name", "") != "ball":
+                        continue
+                    # 球のみが削除対象
+                    center = glm.vec3(*obj.position)
+                    
+                    if radius is None:
+                        radius = max(obj.scale.x, obj.scale.y, obj.scale.z) * 1.0
+                    else:
+                        radius = obj.radius
+                        
+                    t = _ray_hit_sphere(ro, rd, center, radius)
+                    #tが最小のものを選ぶ
+                    if t is not None and t < hit_t:
+                        hit_t = t
+                        hit_idx = obj.obj_id
+
+                if hit_idx >= 0:
+                    self.removed_object_idx.append(hit_idx)
+                    text += f"球を削除しました"
+
+        finally:
+            self._status_callback(text = text, count = len(self.phys.objects))
             self.update()
-        self._status_callback(len(self.phys.objects))
-        
     
+    def _make_ray(self, x: float, y: float):
+        """スクリーン座標(x,y)→ワールド空間のレイ(origin, dir)"""
+        # ビューポート（OpenGL座標系は左下原点なのでY反転）
+        w, h = self.width(), self.height()
+        winx, winy = x, h - y
+        viewport = glm.vec4(0, 0, w, h)
+
+        # 近/遠平面上の点をGLMで逆射影　#qt座標→ワールド座標変換
+        near_world = glm.unProject(glm.vec3(winx, winy, 0.0), self.view, self.proj, viewport)
+        far_world  = glm.unProject(glm.vec3(winx, winy, 1.0), self.view, self.proj, viewport)
+        #0.0で近接面, 1.0で遠方面 それぞれglm.perspectiveで設定ずみ
+        ro = near_world # ray origin
+        rd = glm.normalize(far_world - near_world) #単位方向ベクトル ray direction
+        return ro, rd

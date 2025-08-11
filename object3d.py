@@ -23,9 +23,10 @@ class Object3D:
         rot: glm.quat|None=None,
         color: Tuple[float, float, float, float] = (1, 1, 1, 1), #白
         scale: Tuple[float, float, float] = (1, 1, 1), # ローカル座標軸に沿って
+        radius: float|None = None, #半径（指定があれば）
         name_posi_local: Tuple[float, float, float] = (0, 0, 0), #ローカル座標
         is_move: bool = True,
-        name: str = "",
+        name: str = "unnamed",
         texture_path:str = None
     ) -> None:
         
@@ -36,28 +37,31 @@ class Object3D:
         self.normals = compute_normals(self.vertices, self.tri_indices.reshape(-1, 3)) if len(self.tri_indices) > 0 else np.asarray(npFloat([])) # 法線ベクトル計算
 
         # --------- UV（未指定なら共通ロジックで自動生成）----------
-        if uvs is None or (hasattr(uvs, "size") and uvs.size == 0):
-            try:
-                tri = self.tri_indices.reshape(-1, 3) if len(self.tri_indices) > 0 else None
-                self.uvs = compute_uvs(self.vertices, tri_indices=tri,
-                                       normals=self.normals if self.normals.size else None,
-                                       mode=uv_mode)
-            except Exception:
-                # 予防的フォールバック（最低限の0埋め）
-                self.uvs = np.zeros((len(self.vertices), 2), dtype=np.float32)
-        else:
-            self.uvs = npFloat(uvs)
+        if texture_path is not None: # UVはテクスチャを使うときだけ生成
+            if uvs is None or (hasattr(uvs, "size") and uvs.size == 0):
+                try:
+                    tri = self.tri_indices.reshape(-1, 3) if len(self.tri_indices) > 0 else None
+                    self.uvs = compute_uvs(self.vertices, tri_indices=tri,
+                                        normals=self.normals if self.normals.size else None,
+                                        mode=uv_mode)
+                except Exception:
+                    # 予防的フォールバック（最低限の0埋め）
+                    self.uvs = np.zeros((len(self.vertices), 2), dtype=np.float32)
+            else:
+                self.uvs = npFloat(uvs)
+                
+            if self.uvs.ndim != 2 or self.uvs.shape[1] != 2:
+                raise ValueError(f"uvs must have shape (N,2), but got {self.uvs.shape}")
+            if self.uvs.shape[0] not in (0, self.vertices.shape[0]):
+                raise ValueError(f"uv count {self.uvs.shape[0]} does not match vertex count {self.vertices.shape[0]}")
             
-        if self.uvs.ndim != 2 or self.uvs.shape[1] != 2:
-            raise ValueError(f"uvs must have shape (N,2), but got {self.uvs.shape}")
-        if self.uvs.shape[0] not in (0, self.vertices.shape[0]):
-            raise ValueError(f"uv count {self.uvs.shape[0]} does not match vertex count {self.vertices.shape[0]}")
-        
-        if self.tri_indices.size > 0:
-            # 球/円柱のときだけでもOK。まずは常にU方向の継ぎ目対策を適用して問題なし。
-            self.vertices, self.normals, self.uvs, self.tri_indices = seam_split(
-                self.vertices, self.normals, self.uvs, self.tri_indices
-            )
+            if self.tri_indices.size > 0:
+                # 球/円柱のときだけでもOK。まずは常にU方向の継ぎ目対策を適用して問題なし。
+                self.vertices, self.normals, self.uvs, self.tri_indices = seam_split(
+                    self.vertices, self.normals, self.uvs, self.tri_indices
+                )
+        else:
+            self.uvs = None  # UV不要
         # ----------------------------------------------------------
         self.update_texture(texture_path)  # テクスチャの更新
         self.color = (*color, 1.0) if len(color) == 3 else color if len(color) == 4 else (_ for _ in ()).throw(ValueError("Color must be a tuple of 3 or 4 floats"))
@@ -67,7 +71,12 @@ class Object3D:
         self.position = glm.vec3(*posi)
         self.rotation = rot if rot is not None else glm.quat()  # クォータニオン
         self.scale = glm.vec3(*scale)
+        if radius is not None:
+            self.radius = radius
+        elif "ball" in self.name:
+            raise ValueError("Ball objects must specify a radius !!")
         self.is_move = is_move  # 動くかどうか
+        self.obj_id: int | None = None #physicsで使う
         
         # 初期のモデル行列　動かないものはこれを使いまわす
         self.model_mat = glm.mat4(1)
@@ -81,7 +90,7 @@ class Object3D:
         if self.normals.size > 0:
             self.geo.add_array(1, self.normals, 3)
         # UV（保持していれば）
-        if self.uvs.size > 0:
+        if self.uvs is not None and self.uvs.size > 0:
             self.geo.add_array(2, self.uvs, 2)
         # インデックス
         if self.line_indices.size > 0:

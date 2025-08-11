@@ -2,6 +2,9 @@ import ctypes
 from OpenGL import GL
 from PIL import Image
 import math
+from OpenGL.GLU import gluUnProject
+import glm
+
 from tools import np, working_dir, npFloat, npInt
 
 def compute_normals(vertices:np.ndarray, tri_indices:np.ndarray) -> np.ndarray:
@@ -68,6 +71,48 @@ def load_texture(figpath):
 
     GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
     return tex
+
+# --- マウスイベントに使うレイキャストまわり ---
+def _ray_hit_plane(ro: glm.vec3,
+                   rd: glm.vec3,
+                   plane_point: glm.vec3 = glm.vec3(0, 0, 0),
+                   plane_normal: glm.vec3 = glm.vec3(0, 0, 1))-> glm.vec3 | None:
+    """
+    レイと任意平面（デフォでz=0）の交点を返す。
+    ro: レイ原点 (Ray Origin)
+    rd: レイ方向 (Ray Direction, 正規化ずみ)
+    plane_point: 平面上の任意の点
+    plane_normal: 平面の法線ベクトル（正規化推奨）
+    戻り値: 交点 glm.vec3 または None（交差しない）
+    """
+    denom = glm.dot(plane_normal, rd)
+    if abs(denom) < 1e-9:  # レイが平面と平行
+        print("Ray is parallel to the plane, so does not hit.")
+        return None
+
+    t = glm.dot(plane_point - ro, plane_normal) / denom
+    if t <= 0.0:
+        print("the plane is behind the ray half straight line, so does not hit.")
+        return None
+
+    return ro + t * rd
+
+def _ray_hit_sphere(ro: glm.vec3, rd: glm.vec3, center: glm.vec3, radius: float):
+    """レイと球の交差。最小の正の t を返す。ヒット無しは None"""
+    oc = ro - center
+    b = glm.dot(oc, rd)          # 注意: a=1（rd正規化前提）
+    c = glm.dot(oc, oc) - radius * radius
+    disc = b*b - c               # 判別式（a=1, 2b→b*2 を省略）
+    if disc < 0.0:
+        return None
+    sqrt_d = math.sqrt(disc)
+    t1 = -b - sqrt_d
+    t2 = -b + sqrt_d
+    # 最小の正の解を採用
+    if t1 > 1e-6: return t1
+    if t2 > 1e-6: return t2
+    return None
+
 
 def seam_split(positions, normals, uvs, faces):
     """説明文

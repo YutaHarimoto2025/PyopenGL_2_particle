@@ -1,5 +1,5 @@
 from collections import deque
-from typing import List
+from typing import List, Tuple
 import copy
 import threading
 import time
@@ -19,6 +19,7 @@ class Physics:
         self.one_ball = oneball_center()
         # self.objects: List[Object3D] = self.box + self.axes + self.balls
         self.objects: List[Object3D] = self.one_ball + self.axes
+        self._reindex_objects()
         self.objects_state_buffer: List[List[dict]] = []
         self.dt_sim = 0.001
         self.t_sim = 0.0
@@ -33,6 +34,17 @@ class Physics:
         if self.is_saving:
             self.savefile_path = make_datetime_file(prefix="objectsLOG", domain="jsonl")
             open(self.savefile_path, "w", encoding="utf-8").close()
+            
+    def _reindex_objects(self):
+        for i, obj in enumerate(self.objects):
+            obj.obj_id = i
+            
+    def _make_state(self, obj):
+        return {
+            "position": copy.deepcopy(obj.position),
+            "rotation": copy.deepcopy(obj.rotation),
+            "scale":    copy.deepcopy(obj.scale),
+        }
 
     def save_current_state(self):
         """ 現在のobjectsの状態をバッファに記録 """
@@ -73,7 +85,7 @@ class Physics:
         if self._onestep_thread is not None:
             self._onestep_thread.join(timeout=1.0) #最大1秒待機して終了を待つ
 
-    def update_objects(self, t: float, dt_frame: float):
+    def update_objects(self, t: float, dt_frame: float, appended:List[Object3D]=None, removed_ids:List[int]=None) -> None:
         """
         t: 現実時間またはシミュレーション時間
         dt_frame: 今回の描画に必要な「補間秒数」
@@ -82,7 +94,23 @@ class Physics:
         self.stop_stepping() #_onestepループを止める
         
         interp_state, buffer_usage_ratio = self.get_interp_state(dt_frame)
-
+        
+        # 整数idで特定して削除
+        if removed_ids:
+            for idx in sorted(removed_ids, reverse=True):
+                if 0 <= idx < len(self.objects):
+                    self.objects.pop(idx)
+                    interp_state.pop(idx)
+        
+        # オブジェクトの追加
+        if appended:
+            for obj in appended:
+                self.objects.append(obj)
+                interp_state.append(self._make_state(obj))
+                
+        if removed_ids or appended:      
+            self._reindex_objects() #オブジェクトの再インデックス付け
+                
         # バッファをクリアし補間済みを先頭に
         self.objects_state_buffer.clear()
         self.objects_state_buffer.append(interp_state)
@@ -97,7 +125,7 @@ class Physics:
         if self.is_saving:
             self.append_jsonl_state(interp_state, buffer_usage_ratio)
         
-    def get_interp_state(self, dt_frame: float) -> List[dict]:
+    def get_interp_state(self, dt_frame: float) -> Tuple[List[dict], float]:
         buff_len = len(self.objects_state_buffer)
         if buff_len == 0: # バッファが空、現在状態をそのまま返す
             print("state buffer is empty. something wrong!")
