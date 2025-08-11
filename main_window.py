@@ -28,7 +28,7 @@ class MainWindow(QMainWindow):
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
 
         # 中央ウィジェットにGLWidgetを配置
-        self.gl = GLWidget() #self._update_status
+        self.gl = GLWidget(self._update_status) 
         self.setCentralWidget(self.gl)
 
         # ステータスバー設置
@@ -51,11 +51,12 @@ class MainWindow(QMainWindow):
         view_menu.addAction(reset_act)
 
         # ツールバー（半径スライダー・ラベル表示切替ボタン）
+        self.slider_radius_rate: int = 100
         tb = QToolBar("操作")
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
         radius_slider = QSlider(Qt.Orientation.Horizontal)
-        radius_slider.setRange(1, 100)
-        radius_slider.setValue(int(self.gl.radius * 100))
+        radius_slider.setRange(int(0.01 * self.slider_radius_rate), int(2 * self.slider_radius_rate))
+        radius_slider.setValue(int(self.gl.radius) * self.slider_radius_rate) #デフォルト値
         radius_slider.valueChanged.connect(self._radius_changed)
         tb.addWidget(QLabel("半径"))
         tb.addWidget(radius_slider)
@@ -69,7 +70,7 @@ class MainWindow(QMainWindow):
 
         # 左上ドック: オブジェクト一覧リスト
         self.list_widget = QListWidget()
-        self.left1_dock = self._create_dock("オブジェクト一覧", self.list_widget, Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.left1_dock = self._create_dock("オブジェクト名: 座標", self.list_widget, Qt.DockWidgetArea.LeftDockWidgetArea)
         self.left1_dock.setFixedWidth(200)  # 横幅固定
 
         # 左下ドック: 名前入力欄
@@ -101,7 +102,7 @@ class MainWindow(QMainWindow):
         """
         半径スライダー変更時の処理。GLWidgetの半径値を更新し、ステータス表示も更新。
         """
-        self.gl.radius = value / 100.0
+        self.gl.radius = float(value / self.slider_radius_rate)
         self.status.showMessage(f"半径: {self.gl.radius:.2f}")
 
     def _clear_objects(self) -> None:
@@ -124,14 +125,14 @@ class MainWindow(QMainWindow):
         self.status.showMessage("初期状態をランダマイズしてリセットしました")
         self.gl.update()    
 
-    def _update_status(self, x: float, y: float, count: int) -> None:
+    def _update_status(self, count:int) -> None:
         """
         GLWidgetからのコールバックで座標やオブジェクト数を表示・リスト更新。
         """
-        self.status.showMessage(f"クリック位置: ({x:.2f}, {y:.2f}) | オブジェクト数: {count}")
+        self.status.showMessage(f"オブジェクト数: {count}") #クリック位置: ({x:.2f}, {y:.2f}) | 
         self.list_widget.clear()
         for i, obj in enumerate(self.gl.phys.objects, start=1):
-            self.list_widget.addItem(f"{i}: ({obj.x:.2f}, {obj.y:.2f}) r={obj.r:.2f} '{obj.label}'")
+            self.list_widget.addItem(f"{obj.name}: ({obj.position.x:.2f}, {obj.position.y:.2f}, {obj.position.z:.2f})")
             
     def _toggle_labels(self, checked: bool) -> None:
         """

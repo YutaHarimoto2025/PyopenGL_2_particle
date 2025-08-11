@@ -18,7 +18,7 @@ class Physics:
         self.balls = create_balls(num=10, radius=0.1)
         self.one_ball = oneball_center()
         # self.objects: List[Object3D] = self.box + self.axes + self.balls
-        self.objects: List[Object3D] = self.one_ball #+ self.axes
+        self.objects: List[Object3D] = self.one_ball + self.axes
         self.objects_state_buffer: List[List[dict]] = []
         self.dt_sim = 0.001
         self.t_sim = 0.0

@@ -1,7 +1,7 @@
 # GLWidget.py
 
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
-from PyQt6.QtGui import QPainter, QFont, QPen, QColor, QPainterPath
+from PyQt6.QtGui import QPainter, QFont, QPen, QColor, QPainterPath, QMouseEvent
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from OpenGL import GL
 from OpenGL.GLU import gluUnProject
@@ -26,9 +26,10 @@ class GLWidget(QOpenGLWidget):
     ハイパーパラメータはparam.yaml/tools経由で一元管理。
     """
     fpsUpdated = pyqtSignal(int) #クラス変数として定義
-    
-    def __init__(self, parent=None) -> None:
+
+    def __init__(self, status_callback, parent=None) -> None:
         super().__init__(parent)
+        self._status_callback = status_callback
         self.total_frame: int = 0                # 保存する総フレーム数
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
         self.show_labels: bool = False  # ラベル表示フラグ
@@ -130,3 +131,11 @@ class GLWidget(QOpenGLWidget):
         fps = self.frameCount - self.previous_frameCount
         self.previous_frameCount = self.frameCount
         self.fpsUpdated.emit(fps) #シグナルをmain windowに送信
+        
+    # ‑‑‑ Interaction
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.update()
+        self._status_callback(len(self.phys.objects))
+        
+    
