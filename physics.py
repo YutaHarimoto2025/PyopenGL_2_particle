@@ -17,8 +17,8 @@ class Physics:
         self.box = create_boxes(scale=(1, 1, 1))
         self.balls = create_balls(num=10, radius=0.1)
         self.one_ball = oneball_center()
-        # self.objects: List[Object3D] = self.box + self.axes + self.balls
-        self.objects: List[Object3D] = self.one_ball + self.axes
+        self.objects: List[Object3D] = self.box + self.axes + self.balls
+        # self.objects: List[Object3D] = self.one_ball + self.axes
         self._reindex_objects()
         self.objects_state_buffer: List[List[dict]] = []
         self.dt_sim = 0.001
@@ -108,7 +108,7 @@ class Physics:
                 self.objects.append(obj)
                 interp_state.append(self._make_state(obj))
                 
-        if removed_ids or appended:      
+        if removed_ids or appended:     
             self._reindex_objects() #オブジェクトの再インデックス付け
                 
         # バッファをクリアし補間済みを先頭に

@@ -1,6 +1,6 @@
 # main_window.py
 
-import os,sys
+import os,sys, time
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar,
     QLabel, QSlider, QDockWidget, QListWidget, QTextEdit, QWidget
@@ -125,11 +125,14 @@ class MainWindow(QMainWindow):
         self.status.showMessage("初期状態をランダマイズしてリセットしました")
         self.gl.update()    
 
-    def _update_status(self, count:int, text:str) -> None:
+    def _update_status(self, text:str=None) -> None:
         """
         GLWidgetからのコールバックで座標やオブジェクト数を表示・リスト更新。
         """
-        self.status.showMessage(f"{text} | オブジェクト数: {count}") #クリック位置: ({x:.2f}, {y:.2f}) | 
+        # UI更新のため少し待つ
+        if text is None:
+            text=""
+        self.status.showMessage(f"オブジェクト数: {len(self.gl.phys.objects)} | {text}") 
         self.list_widget.clear()
         for i, obj in enumerate(self.gl.phys.objects, start=1):
             self.list_widget.addItem(f"{obj.name}: ({obj.position.x:.2f}, {obj.position.y:.2f}, {obj.position.z:.2f})")

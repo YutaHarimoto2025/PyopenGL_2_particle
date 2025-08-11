@@ -11,7 +11,7 @@ from object3d import Object3D
 # -------------------------------------------------------
 # 3Dオブジェクト生成用ファクトリ関数
 # -------------------------------------------------------
-def get_oneball_vertices_faces(subdiv=2, radius=0.5)-> list:
+def get_oneball_vertices_faces(subdiv=2, radius=0.5)-> Tuple[list, list]:
     """
     subdiv: 細分割回数 分割一回で面が4倍になる
     radius: 球半径
@@ -94,7 +94,7 @@ def oneball_center(radius: float = 0.8) ->list:
         tri_indices=tri_indices,
         uv_mode = "spherical",
         color= (1.0, 1.0, 1.0), #(0.2, 0.2, 0.8), # 青
-        name="ball",
+        name="ball_center",
         radius=radius,
         name_posi_local=(0, 0, 0),
         posi=(0, 0, radius),

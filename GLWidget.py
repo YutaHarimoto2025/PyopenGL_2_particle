@@ -56,7 +56,8 @@ class GLWidget(QOpenGLWidget):
         
         self.phys = Physics(self.is_saving)  # 物理シミュレーションデータ
         self.phys.start_stepping()  # シミュレーションスレッド開始
-            
+        self._status_callback() # 初期状態のステータスを表示
+        
         self.start_time = time.perf_counter()  # 描画開始時刻
         self.previous_time = self.start_time
         self.record_fps_timer = create_periodic_timer(self, self.FpsTimer, 1000)
@@ -96,8 +97,12 @@ class GLWidget(QOpenGLWidget):
         
         # --- シミュレーション更新 ---
         self.phys.update_objects(t, dt_frame, appended=self.appended_object, removed_ids=self.removed_object_idx)
-        self.appended_object.clear()
-        self.removed_object_idx.clear()
+        if self.appended_object:
+            self._status_callback(text = "オブジェクト追加しました")
+            self.appended_object.clear()
+        if self.removed_object_idx:
+            self._status_callback(text = "オブジェクト削除しました")
+            self.removed_object_idx.clear()
 
         # --- オブジェクトの描画 ---
         for obj in self.phys.objects:
@@ -141,7 +146,6 @@ class GLWidget(QOpenGLWidget):
         
     # ‑‑‑ Interaction
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        text =""
         try:
             mods = event.modifiers()
             is_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
@@ -149,7 +153,6 @@ class GLWidget(QOpenGLWidget):
             if not is_ctrl:
                 return
             
-            text +="Ctrlキー付きクリックイベント, "
             #以降はctrlキー押下時の処理
             x, y = float(event.position().x()), float(event.position().y()) #マウスのqt座標
             ro, rd = self._make_ray(x, y)
@@ -174,12 +177,10 @@ class GLWidget(QOpenGLWidget):
                     posi=(center.x, center.y, center.z),
                     radius=r,
                     is_move=True,
-                    name="ball",
-                    uv_mode="spherical",  # 球面UV
+                    name="ball_appended",
                 )
                 # 次のpaintGLで追加するリストへ登録
                 self.appended_object.append(ball)
-                text += "球を生成しました"
                 
             elif event.button() == Qt.MouseButton.RightButton: #右クリック
                 # === 削除（レイ上で最初に当たる球） ===
@@ -205,10 +206,8 @@ class GLWidget(QOpenGLWidget):
 
                 if hit_idx >= 0:
                     self.removed_object_idx.append(hit_idx)
-                    text += f"球を削除しました"
 
         finally:
-            self._status_callback(text = text, count = len(self.phys.objects))
             self.update()
     
     def _make_ray(self, x: float, y: float):
