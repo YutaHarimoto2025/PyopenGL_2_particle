@@ -33,6 +33,7 @@ class Renderer:
         GL.glFrontFace(GL.GL_CCW) # 反時計回りが表面 #GL_CULL_FACEのデフォ
         GL.glDepthMask(GL.GL_TRUE)   
         GL.glDisable(GL.GL_BLEND)
+        GL.glEnable(GL.GL_MULTISAMPLE) #アンチエイリアス
         
         # GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL) # ポリゴンモードを確認（塗りつぶし）
         # GL.glEnable(GL.GL_DEPTH_CLAMP) # 深度クランプを有効化（オプション）

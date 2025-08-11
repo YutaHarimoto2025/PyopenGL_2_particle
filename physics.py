@@ -20,6 +20,8 @@ class Physics:
         self.objects: List[Object3D] = self.box + self.axes + self.balls
         # self.objects: List[Object3D] = self.one_ball + self.axes
         self._reindex_objects()
+        for obj in self.objects:
+            obj.create_gpuBuffer()
         self.objects_state_buffer: List[List[dict]] = []
         self.dt_sim = 0.001
         self.t_sim = 0.0

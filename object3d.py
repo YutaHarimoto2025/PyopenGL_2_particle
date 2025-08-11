@@ -82,7 +82,10 @@ class Object3D:
         self.model_mat = glm.mat4(1)
         self.update_model_matrix(init_flag=True)  # 初期化時にモデル行列を計算
         
-        ################ --- OpenGLバッファ生成 ---
+        self.gpu_ready = False
+    
+    def create_gpuBuffer(self):
+        if self.gpu_ready: return
         self.geo = GLGeometry()
         # 位置
         self.geo.add_array(0, self.vertices, 3)
@@ -97,8 +100,19 @@ class Object3D:
             self.geo.set_elements("lines", self.line_indices)
         if self.tri_indices.size > 0:
             self.geo.set_elements("tris",  self.tri_indices)
-        
-        GL.glBindVertexArray(0)
+        self.gpu_ready = True
+    
+    def destroy_gpuBuffer(self):
+        if not self.gpu_ready: return
+        try:
+            # 先に VAO 以外
+            for _, buf in list(self.geo.buffers.items()):
+                GL.glDeleteBuffers(1, [buf])
+            # VAO
+            GL.glDeleteVertexArrays(1, [self.geo.vao])
+        finally:
+            self.geo = None
+            self.gpu_ready = False
         
     def update_texture(self, texture_path: str|None) -> None:
         if texture_path is not None:

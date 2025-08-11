@@ -156,9 +156,10 @@ class MainWindow(QMainWindow):
 
 # --- エントリーポイント ---
 if __name__ == "__main__":
-    # 垂直同期切ってfps爆速になる魔法　#普段はディスプレイのfpsと同じがやや遅いか
     format = QSurfaceFormat()
-    format.setSwapInterval(0)  # VSyncオフ
+    format.setSamples(4) #アンチエイリアスのサンプル数 
+    format.setSwapInterval(0) # 垂直同期切ってfps爆速になる魔法，普段はディスプレイのfpsと同じがやや遅いか
+    # format.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer) #ダブルバッファでなめらかに
     QSurfaceFormat.setDefaultFormat(format)
     
     app = QApplication(sys.argv)

@@ -54,6 +54,7 @@ class GLWidget(QOpenGLWidget):
         if self.is_saving:
             self.ffmpeg = MovieFFmpeg(self.width(), self.height())
         
+        self.makeCurrent() #!
         self.phys = Physics(self.is_saving)  # 物理シミュレーションデータ
         self.phys.start_stepping()  # シミュレーションスレッド開始
         self._status_callback() # 初期状態のステータスを表示
@@ -167,7 +168,7 @@ class GLWidget(QOpenGLWidget):
                 r = float(self.radius)  # スライダーで更新される半径
                 center = P+ plane_normal * r  # 平面上の点から半径分だけ上にずらす
 
-                vertices, tri_indices = get_oneball_vertices_faces(subdiv=2, radius=r)
+                vertices, tri_indices = get_oneball_vertices_faces(subdiv=3, radius=r)
 
                 # Object3D を生成して配置（動かさない）
                 ball = Object3D(
@@ -179,6 +180,8 @@ class GLWidget(QOpenGLWidget):
                     is_move=True,
                     name="ball_appended",
                 )
+                self.makeCurrent()
+                ball.create_gpuBuffer()  # GPUバッファを生成
                 # 次のpaintGLで追加するリストへ登録
                 self.appended_object.append(ball)
                 
@@ -186,14 +189,15 @@ class GLWidget(QOpenGLWidget):
                 # === 削除（レイ上で最初に当たる球） ===
                 hit_idx = -1
                 hit_t = float("inf")
+                removed_obj = None
 
-                for obj in enumerate(self.phys.objects):
-                    if getattr(obj, "name", "") != "ball":
+                for obj in self.phys.objects:
+                    if "ball" not in getattr(obj, "name", ""):
                         continue
                     # 球のみが削除対象
                     center = glm.vec3(*obj.position)
                     
-                    if radius is None:
+                    if obj.radius is None: #ballには必ずradius属性があるが一応
                         radius = max(obj.scale.x, obj.scale.y, obj.scale.z) * 1.0
                     else:
                         radius = obj.radius
@@ -203,8 +207,11 @@ class GLWidget(QOpenGLWidget):
                     if t is not None and t < hit_t:
                         hit_t = t
                         hit_idx = obj.obj_id
-
+                        removed_obj = obj
+                print(hit_idx)
                 if hit_idx >= 0:
+                    self.makeCurrent()
+                    removed_obj.destroy_gpuBuffer()
                     self.removed_object_idx.append(hit_idx)
 
         finally:
