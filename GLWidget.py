@@ -16,7 +16,7 @@ from create_obj import create_boxes, create_axes, get_oneball_vertices_faces  # 
 from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffepeg import MovieFFmpeg
 from physics import Physics  # 物理シミュレーションデータ
-from old.rendering_old import apply_common_rendering_settings, ObjectRenderer, create_nonobject_renderers
+from rendering import apply_common_rendering_settings, ObjectRenderer, create_nonobject_renderers
 
 class GLWidget(QOpenGLWidget):
     """
