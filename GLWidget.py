@@ -39,6 +39,13 @@ class GLWidget(QOpenGLWidget):
         
         self.appended_object = []
         self.removed_object_idx = []
+        self._ray_show = False
+        self._ray_ro = glm.vec3(0, 0, 0)  # レイの始点終点仮設定
+        self._ray_end = glm.vec3(0, 0, 0)
+        
+        #　球生成，レイキャスト用の平面
+        self.plane_point  = glm.vec3(0,0,0)
+        self.plane_normal = glm.vec3(0,0,1)
 
     def initializeGL(self) -> None:
         """
@@ -47,6 +54,7 @@ class GLWidget(QOpenGLWidget):
         # --- シェーダプログラム読み込み・コンパイル ---
         self.renderer = Renderer()
         self.renderer.init_checkerboard() 
+        self.renderer.init_ray() 
         
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)
@@ -54,7 +62,6 @@ class GLWidget(QOpenGLWidget):
         if self.is_saving:
             self.ffmpeg = MovieFFmpeg(self.width(), self.height())
         
-        self.makeCurrent() #!
         self.phys = Physics(self.is_saving)  # 物理シミュレーションデータ
         self.phys.start_stepping()  # シミュレーションスレッド開始
         self._status_callback() # 初期状態のステータスを表示
@@ -90,6 +97,8 @@ class GLWidget(QOpenGLWidget):
         
         self.renderer.set_common(cam_posi, self.view, self.proj)
         self.renderer.draw_checkerboard(self.view, self.proj) 
+        if self._ray_show:
+            self.renderer.draw_ray(self.view, self.proj, self._ray_ro, self._ray_end)
 
         current_time = time.perf_counter()
         t = current_time - self.start_time  # 経過時間 [秒]
@@ -146,12 +155,33 @@ class GLWidget(QOpenGLWidget):
         self.fpsUpdated.emit(fps) #シグナルをmain windowに送信
         
     # ‑‑‑ Interaction
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        mods = event.modifiers()
+        press_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        if not press_ctrl:
+            if self._ray_show:
+                self._ray_show = False
+            return
+        # Ctrl 押下中：レイを更新
+        x, y = float(event.position().x()), float(event.position().y())
+        ro, rd = self._make_ray(x, y)
+        P = _ray_hit_plane(ro, rd, plane_point=self.plane_point, plane_normal=self.plane_normal)
+        
+        if P is None:
+            L = 100.0  # シーンスケールに合わせて
+            end = ro + rd * L
+        else:
+            end = P
+
+        self._ray_ro  = ro
+        self._ray_end = end
+        self._ray_show = True
+        
     def mousePressEvent(self, event: QMouseEvent) -> None:
         try:
             mods = event.modifiers()
-            is_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
-
-            if not is_ctrl:
+            press_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+            if not press_ctrl:
                 return
             
             #以降はctrlキー押下時の処理
@@ -160,13 +190,14 @@ class GLWidget(QOpenGLWidget):
             
             if event.button() == Qt.MouseButton.LeftButton: #左クリック
                 # === 生成 ===
-                plane_point  = glm.vec3(0,0,0)
-                plane_normal = glm.vec3(0,0,1)
-                P = _ray_hit_plane(ro, rd, plane_point=plane_point, plane_normal=plane_normal)  # checkerboard面
+                P = _ray_hit_plane(ro, rd, plane_point=self.plane_point, plane_normal=self.plane_normal)  # checkerboard面
                 if P is None:
                     return
+                if glm.length(P - self.plane_point) > param_changable["checkerboard"]["length"]:
+                    print("hit point is too far from origin, skipping")
+                    return
                 r = float(self.radius)  # スライダーで更新される半径
-                center = P+ plane_normal * r  # 平面上の点から半径分だけ上にずらす
+                center = P+ self.plane_normal * r  # 平面上の点から半径分だけ上にずらす
 
                 vertices, tri_indices = get_oneball_vertices_faces(subdiv=3, radius=r)
 

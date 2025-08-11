@@ -108,11 +108,12 @@ class Renderer:
                 obj.geo.draw_elements(GL.GL_LINES, "lines")
             if obj.tri_indices.size > 0:
                 obj.geo.draw_elements(GL.GL_TRIANGLES, "tris")
-            
+    
+    # ---- Non Object Rendering Methods ---- 
     def init_checkerboard(self):
         # シェーダファイル（中に CK_MIN/CK_MAX/CK_CELL/COLORS を const で記述）
         self.checker_prog = build_GLProgram(vert_filename="Checker.vert", frag_filename="Checker.frag")
-        self._get_uniform_loc(prog=self.checker_prog, names={"uView", "uProj"}, prefix="checker_")
+        self._get_uniform_loc(prog=self.checker_prog, names={"uView", "uProj","L"}, prefix="checker_")
 
         # UV 正方形（0..1）。位置計算は VS 側で CK_MIN/CK_MAX を使って行う
         verts = np.array([[0.0,0.0],[1.0,0.0],[1.0,1.0],[0.0,1.0]], dtype=np.float32)
@@ -123,13 +124,70 @@ class Renderer:
         self.checker_geo = geo
         
     def draw_checkerboard(self, view: glm.mat4, proj: glm.mat4):
-        if self.checker_prog is None or self.checker_geo is None or not param_changable["checkerboard"]:
+        if self.checker_prog is None or self.checker_geo is None or not param_changable["checkerboard"]["enable"]:
             return
         GL.glUseProgram(self.checker_prog)
         GL.glUniformMatrix4fv(self.checker_uView, 1, False, glm.value_ptr(view))
         GL.glUniformMatrix4fv(self.checker_uProj, 1, False, glm.value_ptr(proj))
+        GL.glUniform1f(self.checker_L, param_changable["checkerboard"]["length"])
         self.checker_geo.draw_elements(GL.GL_TRIANGLES, 'tris')
         GL.glUseProgram(self.prog) #戻す
+        
+    def init_ray(self):
+        # シンプルな単色ライン用シェーダ（下に最小の GLSL を付けます）
+        self.ray_prog = build_GLProgram(vert_filename="Ray.vert", frag_filename="Ray.frag")
+        self._get_uniform_loc(prog=self.ray_prog, names={"uView", "uProj"}, prefix="ray_")
+
+        # 2頂点のライン（座標は draw 時にその都度差し替え）
+        verts = np.zeros((2, 3), dtype=np.float32)
+        idx   = np.array([0, 1], dtype=np.uint32)
+
+        geo = GLGeometry()
+        geo.add_array(0, verts, 3)         # layout(location=0) in vec3 in_pos;
+        geo.set_elements('lines', idx)     # インデックス: 0-1 を線分描画
+        self.ray_geo = geo
+    
+    def draw_ray(self, view: glm.mat4, proj: glm.mat4,
+             p0: glm.vec3, p1: glm.vec3,
+             width: float = 10.0,
+             on_top: bool = True) -> None:
+        """
+        p0->p1 の線分を描く
+        on_top=True なら深度無効で常に手前表示。
+        """
+        if self.ray_prog is None or self.ray_geo is None:
+            return
+
+        GL.glUseProgram(self.ray_prog)
+        GL.glUniformMatrix4fv(self.ray_uView, 1, False, glm.value_ptr(view))
+        GL.glUniformMatrix4fv(self.ray_uProj, 1, False, glm.value_ptr(proj))
+
+        # 毎フレーム：2頂点を更新（小サイズなので add_array の再アップロードで十分）
+        v = np.array([[float(p0.x), float(p0.y), float(p0.z)],
+                    [float(p1.x), float(p1.y), float(p1.z)]], dtype=np.float32)
+        self.ray_geo.add_array(0, v, 3)
+
+        # 直接 OpenGL で更新（GLGeometry に VAO/VBO ハンドルがある想定の例）
+        # GL.glBindVertexArray(self.ray_geo.vao)
+        # GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.ray_geo.vbos[0])
+        # GL.glBufferSubData(GL.GL_ARRAY_BUFFER, 0, v.nbytes, v)
+        # GL.glBindBuffer(GL.GL_ARRAY_BUFFER, 0)
+        # GL.glBindVertexArray(0)
+        
+        # 必要なら手前固定
+        if on_top:
+            GL.glDisable(GL.GL_DEPTH_TEST)
+
+        GL.glLineWidth(width)
+        self.ray_geo.draw_elements(GL.GL_LINES, 'lines')
+        GL.glLineWidth(1.0)
+
+        if on_top:
+            GL.glEnable(GL.GL_DEPTH_TEST)
+
+        # メインのプログラムに戻す（checkerboard と同じ流儀）
+        GL.glUseProgram(self.prog)
+
         
     # ---- uniform location を安全に取得（-1なら警告）
     def _get_uniform_loc(self, prog, names:set, prefix=""):

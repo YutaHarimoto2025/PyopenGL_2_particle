@@ -6,7 +6,10 @@
     1.0
   ],
   "ball_texture": "source/worldmap-russia.jpg",
-  "checkerboard": true,
+  "checkerboard": {
+    "enable": true,
+    "length": 5.0
+  },
   "fov": 60.0,
   "fps": 100
 }
