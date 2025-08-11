@@ -16,7 +16,7 @@ from create_obj import create_boxes, create_axes, get_oneball_vertices_faces  # 
 from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffepeg import MovieFFmpeg
 from physics import Physics  # 物理シミュレーションデータ
-from rendering import Renderer
+from old.rendering_old import apply_common_rendering_settings, ObjectRenderer, create_nonobject_renderers
 
 class GLWidget(QOpenGLWidget):
     """
@@ -52,9 +52,8 @@ class GLWidget(QOpenGLWidget):
         OpenGL初期化処理。シェーダコンパイル、オブジェクト生成、背景色設定、動画保存準備など。
         """
         # --- シェーダプログラム読み込み・コンパイル ---
-        self.renderer = Renderer()
-        self.renderer.init_checkerboard() 
-        self.renderer.init_ray() 
+        self.renderer = ObjectRenderer()
+        self.checker, self.ray = create_nonobject_renderers()
         
         self.setMouseTracking(True) #クリックしなくてもマウス移動イベントを受け取れる
         # --- 動画保存用ffmpeg準備 ---
@@ -97,10 +96,12 @@ class GLWidget(QOpenGLWidget):
         # self.proj = glm.ortho(-5.0, 5.0, -5.0, 5.0, 0.01, 100.0)
         
         self.renderer.set_common(cam_posi, self.view, self.proj)
-        self.renderer.draw_checkerboard(self.view, self.proj) 
+        self.checker.draw(self.view, self.proj, 
+                additional_uniform_dict={"L": float(param_changable["checkerboard"]["length"])}) 
         if self._ray_show:
-            self.renderer.draw_ray(self.view, self.proj, self._ray_p0, self._ray_p1)
-
+            self.ray.draw(self.view, self.proj, 
+                additional_uniform_dict={"uP0":self._ray_p0, "uP1":self._ray_p1})
+            
         current_time = time.perf_counter()
         t = current_time - self.start_time  # 経過時間 [秒]
         dt_frame = current_time - self.previous_time  # 前フレームからの経過時間 [秒]

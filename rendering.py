@@ -1,4 +1,3 @@
-# rendering.py
 import numpy as np
 from OpenGL import GL
 import glm
@@ -7,12 +6,37 @@ import ctypes
 from tools import param_changable, param
 from graphic_tools import load_shader, build_GLProgram, GLGeometry
 
-class Renderer:
+# ---- uniform location を安全に取得（-1なら警告）
+def get_uniform_loc(target, prog, name_set:set, prefix=""):
+    for name in name_set:
+        loc = GL.glGetUniformLocation(prog, name)
+        if loc == -1:
+            print(f"[warn] uniform '{name}' not found (optimized out or name mismatch)")
+        setattr(target, f"{prefix}{name}", loc)
+
+def apply_common_rendering_settings():
+    GL.glEnable(GL.GL_DEPTH_TEST); GL.glDepthFunc(GL.GL_LESS)
+    GL.glEnable(GL.GL_FRAMEBUFFER_SRGB)
+    GL.glEnable(GL.GL_CULL_FACE); #スクリーン上で反時計回りが表面，ウラ面を描画しない
+    GL.glCullFace(GL.GL_BACK) # #ウラ面を描画しない　＃GL_CULL_FACEのデフォ
+    GL.glFrontFace(GL.GL_CCW) # 反時計回りが表面 #GL_CULL_FACEのデフォ
+    GL.glDepthMask(GL.GL_TRUE)   
+    GL.glDisable(GL.GL_BLEND)
+    GL.glEnable(GL.GL_MULTISAMPLE) #アンチエイリアス
+    
+    # GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL) # ポリゴンモードを確認（塗りつぶし）
+    # GL.glEnable(GL.GL_DEPTH_CLAMP) # 深度クランプを有効化（オプション）
+
+    # 透明なものを描く
+    # GL.glEnable(GL.GL_BLEND)
+    # GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+    # 必要なら奥→手前の順にソート描画
+        
+class ObjectRenderer:
     def __init__(self):
         self.prog = build_GLProgram(vert_filename=param.shader.vert, frag_filename=param.shader.frag)
         # ---- cache uniform locations
-        GL.glUseProgram(self.prog)
-        uniform_names = {
+        uniform_name_set = {
             # 既存
             "uModel", "uView", "uProj", "uViewPos",
             "uLightPos", "uColor", "uShadingMode",
@@ -23,25 +47,7 @@ class Renderer:
             "uUseTexture", "uTexIsSRGB", "uTex",
             "uUseUVChecker", "uUVCell", "uUVColor1", "uUVColor2",
         }
-        self._get_uniform_loc(prog=self.prog, names=uniform_names)  
-        
-        #その他のset up
-        GL.glEnable(GL.GL_DEPTH_TEST); GL.glDepthFunc(GL.GL_LESS)
-        GL.glEnable(GL.GL_FRAMEBUFFER_SRGB)
-        GL.glEnable(GL.GL_CULL_FACE); #スクリーン上で反時計回りが表面，ウラ面を描画しない
-        GL.glCullFace(GL.GL_BACK) # #ウラ面を描画しない　＃GL_CULL_FACEのデフォ
-        GL.glFrontFace(GL.GL_CCW) # 反時計回りが表面 #GL_CULL_FACEのデフォ
-        GL.glDepthMask(GL.GL_TRUE)   
-        GL.glDisable(GL.GL_BLEND)
-        GL.glEnable(GL.GL_MULTISAMPLE) #アンチエイリアス
-        
-        # GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL) # ポリゴンモードを確認（塗りつぶし）
-        # GL.glEnable(GL.GL_DEPTH_CLAMP) # 深度クランプを有効化（オプション）
-    
-        # 透明なものを描く
-        # GL.glEnable(GL.GL_BLEND)
-        # GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
-        # 必要なら奥→手前の順にソート描画
+        get_uniform_loc(self, prog=self.prog, name_set=uniform_name_set)  
 
     def set_common(self, cam_posi, view, proj): #オブジェクト共通
         GL.glUseProgram(self.prog)
@@ -68,9 +74,9 @@ class Renderer:
         GL.glUniform1i(self.uTexIsSRGB,   1)
 
     def set_each(self, obj): #オブジェクトごと
+        GL.glUseProgram(self.prog)
         model = obj.model_mat
         rgba = obj.color
-        GL.glUseProgram(self.prog)
         GL.glUniformMatrix4fv(self.uModel, 1, False, glm.value_ptr(model)) # uModel
         nmat = glm.mat3(glm.transpose(glm.inverse(glm.mat3(model)))) 
         GL.glUniformMatrix3fv(self.uNormalMatrix, 1, False, glm.value_ptr(nmat)) # uNormalMatrix非一様スケール対応
@@ -87,6 +93,7 @@ class Renderer:
         OpenGL描画処理。バッファ転送や属性設定も含む。
         xp/npを引数で指定しCuPy/NumPy両対応。
         """
+        GL.glUseProgram(self.prog)
         if obj.use_tex and self.uTex != -1:
             # bind
             GL.glActiveTexture(GL.GL_TEXTURE0)
@@ -108,82 +115,108 @@ class Renderer:
                 obj.geo.draw_elements(GL.GL_LINES, "lines")
             if obj.tri_indices.size > 0:
                 obj.geo.draw_elements(GL.GL_TRIANGLES, "tris")
-    
-    # ---- Non Object Rendering Methods ---- 
-    def init_checkerboard(self):
-        # シェーダファイル（中に CK_MIN/CK_MAX/CK_CELL/COLORS を const で記述）
-        self.checker_prog = build_GLProgram(vert_filename="Checker.vert", frag_filename="Checker.frag")
-        self._get_uniform_loc(prog=self.checker_prog, names={"uView", "uProj","L"}, prefix="checker_")
-
-        # UV 正方形（0..1）。位置計算は VS 側で CK_MIN/CK_MAX を使って行う
-        verts = np.array([[0.0,0.0],[1.0,0.0],[1.0,1.0],[0.0,1.0]], dtype=np.float32)
-        idx   = np.array([0,1,2, 0,2,3], dtype=np.uint32)
-        geo = GLGeometry()
-        geo.add_array(0, verts, 2)     # layout(location=0) in vec2 in_uv;
-        geo.set_elements('tris', idx)
-        self.checker_geo = geo
+                
+class NonObjectRenderer:
+    """
+    オブジェクト以外の描画用クラス。
+    例: Ray, Checkerboard, Planeなど。
+    """
+    def __init__(self, name:str, vertices:np.ndarray, indices:np.ndarray, draw_mode:str, additional_uniform_dict:dict):
+        self.prog = build_GLProgram(vert_filename=f"{name}.vert", frag_filename=f"{name}.frag")
+        base_uniform_set = {"uView", "uProj"}
+        additional_uniform_set = set(additional_uniform_dict.copy().keys())
+        get_uniform_loc(self, prog=self.prog, name_set=base_uniform_set|additional_uniform_set)
+        self.geo = GLGeometry()
+        self.geo.add_array(0, vertices, 2)  # layout(location=0) in vec2 ～ を想定 todo:柔軟に変更
+        self.geo.set_elements(draw_mode, indices)
         
-    def draw_checkerboard(self, view: glm.mat4, proj: glm.mat4):
-        if self.checker_prog is None or self.checker_geo is None or not param_changable["checkerboard"]["enable"]:
-            return
-        GL.glUseProgram(self.checker_prog)
-        GL.glUniformMatrix4fv(self.checker_uView, 1, False, glm.value_ptr(view))
-        GL.glUniformMatrix4fv(self.checker_uProj, 1, False, glm.value_ptr(proj))
-        GL.glUniform1f(self.checker_L, param_changable["checkerboard"]["length"])
-        self.checker_geo.draw_elements(GL.GL_TRIANGLES, 'tris')
-        GL.glUseProgram(self.prog) #戻す
+        self.draw_mode = draw_mode  # "tris", "strip"
+        self.DEFAULT_additional_uniform_dict =  additional_uniform_dict.copy()
         
-    def init_ray(self):
-        # シンプルな単色ライン用シェーダ（下に最小の GLSL を付けます）
-        self.ray_prog = build_GLProgram(vert_filename="Ray.vert", frag_filename="Ray.frag")
-        self._get_uniform_loc(prog=self.ray_prog, names={"uView", "uProj", "uP0","uP1", "uR0", "uR1"}, prefix="ray_")
-
-        slices = 32
-        params = np.zeros((2*(slices+1), 2), dtype=np.float32)
-        k = 0
-        for i in range(slices+1):
-            t = i / float(slices)
-            params[k, 0] = 0.0; params[k, 1] = t; k += 1   # p0側リム
-            params[k, 0] = 1.0; params[k, 1] = t; k += 1   # p1側リム
-
-        geo = GLGeometry()
-        geo.add_array(0, params, 2)  # layout(location=0) in vec2 aParam
-
-        # 連番インデックスで strip を描く
-        idx = np.arange(params.shape[0], dtype=np.uint32)
-        geo.set_elements('strip', idx)
-        self.ray_geo = geo
-    
-    def draw_ray(self, view: glm.mat4, proj: glm.mat4,
-             p0: glm.vec3, p1: glm.vec3) -> None:
-        """
-        p0->p1 の線分を描く
-        on_top=True なら深度無効で常に手前表示。
-        """
-        if self.ray_prog is None or self.ray_geo is None:
-            return
-
-        GL.glUseProgram(self.ray_prog)
-        GL.glUniformMatrix4fv(self.ray_uView, 1, False, glm.value_ptr(view))
-        GL.glUniformMatrix4fv(self.ray_uProj, 1, False, glm.value_ptr(proj))
-
-        # 太さ
-        GL.glUniform1f(self.ray_uR0, float(1e-4))   # 完全ゼロは稀に不安定なので微小値を推奨
-        GL.glUniform1f(self.ray_uR1, float(0.05))
-
-        # 端点座標（ワールド）
-        GL.glUniform3f(self.ray_uP0, float(p0.x), float(p0.y), float(p0.z))
-        GL.glUniform3f(self.ray_uP1, float(p1.x), float(p1.y), float(p1.z))
-
-        self.ray_geo.draw_elements(GL.GL_TRIANGLE_STRIP, 'strip')
-            
+    def draw(self, view: glm.mat4, proj: glm.mat4, additional_uniform_dict: dict | None = None) -> None:
+        #ここでのadditional_uniform_dictは，変更分だけ記述
         GL.glUseProgram(self.prog)
-
+        GL.glUniformMatrix4fv(self.uView, 1, False, glm.value_ptr(view))
+        GL.glUniformMatrix4fv(self.uProj, 1, False, glm.value_ptr(proj))
         
-    # ---- uniform location を安全に取得（-1なら警告）
-    def _get_uniform_loc(self, prog, names:set, prefix=""):
-        for name in names:
-            loc = GL.glGetUniformLocation(prog, name)
-            if loc == -1:
-                print(f"[warn] uniform '{name}' not found (optimized out or name mismatch)")
-            setattr(self, f"{prefix}{name}", loc)
+        # 1) まず既定値を送信
+        self.set_glUniform(self.DEFAULT_additional_uniform_dict)
+        # 2) 次に変更分を上書き
+        if additional_uniform_dict:
+            self.set_glUniform(additional_uniform_dict)
+        
+        gl_mode = self.specify_gl_mode(self.draw_mode)
+        self.geo.draw_elements(gl_mode, self.draw_mode)
+        
+    def set_glUniform(self, uniform_dict:dict) -> None:
+        for key, value in uniform_dict.items():
+            loc = getattr(self, key, None)
+            if loc is None or loc == -1:
+                continue #selfが見つからないならスキップ
+            # 1) float
+            if isinstance(value, float):
+                GL.glUniform1f(loc, float(value))
+                continue
+            # 2) glm.vec3
+            if hasattr(value, "x") and hasattr(value, "y") and hasattr(value, "z"):
+                GL.glUniform3f(loc, float(value.x), float(value.y), float(value.z))
+                continue
+            #必要に応じて追加
+        
+    @staticmethod
+    def specify_gl_mode(draw_mode: str) -> int:
+        """set_elements で指定したタグから OpenGL のプリミティブ列挙値へ変換"""
+        draw_mode = draw_mode.lower() #ぜんぶ小文字に変換
+        if draw_mode in ("triangles", "triangle", "tris"):
+            return GL.GL_TRIANGLES
+        if draw_mode in ("strip", "triangle_strip", "tri_strip"):
+            return GL.GL_TRIANGLE_STRIP
+        if draw_mode in ("lines", "line"):
+            return GL.GL_LINES
+        if draw_mode in ("line_strip",):
+            return GL.GL_LINE_STRIP
+        # 必要に応じて追加
+        raise ValueError(f"Unsupported draw mode draw_mode: {draw_mode}")
+
+def create_nonobject_renderers(): #適宜追加
+    # ------------Checkerboard インスタンス-------------
+    # UV 正方形（0..1）。位置計算は VS 側で CK_MIN/CK_MAX を使う構成を踏襲
+    checker_verts = np.array(
+        [[0.0, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0]], dtype=np.float32
+    )
+    checker_idx = np.array([0, 1, 2, 0, 2, 3], dtype=np.uint32)
+
+    # 追加ユニフォームは L（セル長）
+    checker = NonObjectRenderer(
+        name="checker",
+        vertices=checker_verts,
+        indices=checker_idx,
+        draw_mode="tris",
+        additional_uniform_dict={"L": float(param_changable["checkerboard"]["length"])},
+    )
+
+    # ------------Ray インスタンス-------------
+    # ストリップ描画用のパラメトリック頂点列を生成
+    slices = 32
+    ray_params = np.zeros((2 * (slices + 1), 2), dtype=np.float32)
+    k = 0
+    for i in range(slices + 1):
+        t = i / float(slices)
+        ray_params[k, 0] = 0.0; ray_params[k, 1] = t; k += 1   # p0側リム
+        ray_params[k, 0] = 1.0; ray_params[k, 1] = t; k += 1   # p1側リム
+
+    ray_idx = np.arange(ray_params.shape[0], dtype=np.uint32)
+
+    # 追加ユニフォームは端点と太さ（uP0/uP1/uR0/uR1）
+    ray = NonObjectRenderer(
+        name="ray",
+        vertices=ray_params,
+        indices=ray_idx,
+        draw_mode="strip",
+        additional_uniform_dict={"uP0":glm.vec3(0, 0, 0), "uP1":glm.vec3(0, 0, 0), "uR0":float(1e-4), "uR1":float(0.05)},
+    )
+    
+    return checker, ray

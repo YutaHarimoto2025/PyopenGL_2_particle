@@ -1,4 +1,6 @@
 result_test/** 
+sandbox/**
+old/**
 # Python バイトコードキャッシュ
 __pycache__/
 *.pyc
