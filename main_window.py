@@ -3,13 +3,15 @@
 import os,sys, time
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar,
-    QLabel, QSlider, QDockWidget, QListWidget, QTextEdit, QWidget
+    QLabel, QSlider, QDockWidget, QListWidget, QTextEdit, 
+    QWidget, QColorDialog, QPushButton, QVBoxLayout,
+    QHBoxLayout, QCheckBox, QToolButton
 )
-from PyQt6.QtGui import QAction, QSurfaceFormat
+from PyQt6.QtGui import QAction, QSurfaceFormat, QColor
 from PyQt6.QtCore import Qt, QTimer
 
 from GLWidget import GLWidget  # 別ファイルで定義するGLWidgetをインポート
-from tools import param, param_changable, update_param_changable, create_periodic_timer  # ハイパーパラメータを読み込む
+from tools import param, param_changable, update_param_changable, create_periodic_timer, rngnp  # ハイパーパラメータを読み込む
 
 # Ensure X11 platform for stability
 # os.environ.setdefault("QT_QPA_PLATFORM", "xcb") #GLSLベースだとこれは使っちゃだめ
@@ -63,7 +65,7 @@ class MainWindow(QMainWindow):
         tb.addWidget(radius_slider)
         
         # ラベル表示トグル
-        label_toggle = QAction("ラベル表示", self)
+        label_toggle = QAction("ラベル表示", self) #QAction はwidggetに追加できない
         label_toggle.setCheckable(True)
         label_toggle.setChecked(False)
         label_toggle.triggered.connect(self._toggle_labels)
@@ -75,9 +77,44 @@ class MainWindow(QMainWindow):
         self.left1_dock.setFixedWidth(250)  # 横幅固定
 
         # 左下ドック: 名前入力欄
+        # 名前入力と色選択をまとめたパネルを作成
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+
         self.name_input = QTextEdit()
         self.name_input.setPlaceholderText("オブジェクトの名前を入力…")
-        self.left2_dock = self._create_dock("名前入力", self.name_input, Qt.DockWidgetArea.LeftDockWidgetArea)
+        layout.addWidget(QLabel("名前"))
+        layout.addWidget(self.name_input)
+
+        self._picked_color = QColor(200, 200, 200)
+        self.color_btn = QPushButton("色を選ぶ")
+        self.color_btn.setStyleSheet(f"background-color: {self._picked_color.name()};")
+        self.color_btn.clicked.connect(
+            lambda: (
+                lambda c=QColorDialog.getColor(self._picked_color, self, "色を選択"):
+                    (setattr(self, "_picked_color", c),
+                    self.color_btn.setStyleSheet(f"background-color: {c.name()};"))
+                if c.isValid() else None
+            )()
+        )
+        self.random_color_action = QAction("ランダム", self)
+        self.random_color_action.setCheckable(True)
+        self.random_color_action.setChecked(False)
+        self.random_color_action.triggered.connect(self.get_color_rgb_tuple)
+        
+        random_color_btn = QToolButton()
+        random_color_btn.setDefaultAction(self.random_color_action)
+
+        # 色のラベルとボタン＋トグルを横並びに
+        layout.addWidget(QLabel("色"))
+
+        color_layout = QHBoxLayout()
+        color_layout.addWidget(self.color_btn)
+        color_layout.addWidget(random_color_btn)
+        layout.addLayout(color_layout)
+
+        # 既存の _create_dock を利用
+        self.left2_dock = self._create_dock("追加オブジェクトの，名前 / 色", panel, Qt.DockWidgetArea.LeftDockWidgetArea)
 
         # ドックの縦分割
         self.splitDockWidget(self.left1_dock, self.left2_dock, Qt.Orientation.Vertical)
@@ -89,6 +126,9 @@ class MainWindow(QMainWindow):
         
         # パラメータ更新タイマー
         self.update_param_timer = create_periodic_timer(self, self.param_updater, 1000)  # 1秒ごとに更新
+    
+    def get_color_rgb_tuple(self, checked:bool):
+        self.gl.randomize_appended_obj_color = checked# ランダム色（0..1 の3成分）
 
     def _create_dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
         """

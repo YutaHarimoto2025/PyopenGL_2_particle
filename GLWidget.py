@@ -10,7 +10,7 @@ from typing import List, Optional
 from pathlib import Path
 import time
 
-from tools import xp, np, create_periodic_timer, param, param_changable, working_dir  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
+from tools import xp, np, create_periodic_timer, param, param_changable, working_dir, rngnp  # CuPy/NumPy, 各種ユーティリティ, ハイパーパラメータ
 from graphic_tools import load_shader, compute_normals, _ray_hit_plane, _ray_hit_sphere  # シェーダ読み込み、法線計算、レイキャスト
 from create_obj import create_boxes, create_axes, get_oneball_vertices_faces  # オブジェクト生成はここに分離
 from object3d import Object3D  # 3Dオブジェクト定義
@@ -33,6 +33,7 @@ class GLWidget(QOpenGLWidget):
         self.total_frame: int = 0                # 保存する総フレーム数
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
         self.show_labels: bool = False  # ラベル表示フラグ
+        self.randomize_appended_obj_color: bool = False  # ランダム色フラグ
         self.radius: float = 1.0  # 半径（スライダーで調整）
         
         self.previous_frameCount:int = 0
@@ -129,17 +130,20 @@ class GLWidget(QOpenGLWidget):
         # --- QPainterでラベル描画 ---
         if self.show_labels:
             painter = QPainter(self)
-            font = QFont("Noto Sans CJK JP", 16, QFont.Weight.Normal)
+            font = QFont("Noto Sans CJK JP", 20, QFont.Weight.Normal)
             painter.setFont(font)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             for obj in self.phys.objects:
                 pos = obj.localframe_to_window(self.view, self.proj, (self.width(), self.height()))
                 r, g, b, a = [int(c*255) for c in obj.color]
-                path = QPainterPath()
-                path.addText(pos[0], pos[1], painter.font(), obj.name)
-                # painter.setPen(QPen(Qt.GlobalColor.white, 3))
-                # painter.drawPath(path) # テキストの輪郭
+                 # 輪郭（黒線）
+                painter.setPen(QPen(Qt.GlobalColor.black))
+                for dx, dy in [(-2, 0), (2, 0), (0, -2), (0, 2)]:
+                    painter.drawText(pos[0] + dx, pos[1] + dy, obj.name)
 
-                painter.fillPath(path, QColor(r,g,b))#中を塗りつぶす
+                # 中身（指定色）
+                painter.setPen(QColor(r, g, b))
+                painter.drawText(pos[0], pos[1], obj.name)
             painter.end()
 
         # --- フレームカウント管理・動画保存処理 ---
@@ -205,17 +209,25 @@ class GLWidget(QOpenGLWidget):
 
                 vertices, tri_indices = get_oneball_vertices_faces(subdiv=3, radius=r)
 
-                # Object3D を生成して配置（動かさない）
-                num_ball = sum(1 for obj in self.phys.objects if "ball" in obj.name)
+                # ----- Object3D ballを生成 -----
+                # 名前を決める
                 nickname = self.parent().name_input.toPlainText().strip()
                 if nickname != "":
                     name= nickname
                 else:
+                    num_ball = sum(1 for obj in self.phys.objects if "ball" in obj.name)
                     name = f"ball{num_ball+1}"
+                # 色を決める
+                if self.randomize_appended_obj_color:
+                    color = tuple(rngnp.random(3))
+                else:
+                    c = self.parent()._picked_color
+                    color = (c.redF(), c.greenF(), c.blueF())  # float 0~1に変換
+                
                 ball = Object3D(
                     vertices=vertices,
                     tri_indices=tri_indices,
-                    color=(1.0, 0.5, 1.0),
+                    color=color,
                     posi=(center.x, center.y, center.z),
                     radius=r,
                     is_move=True,

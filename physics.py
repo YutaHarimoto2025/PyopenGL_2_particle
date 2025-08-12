@@ -23,7 +23,7 @@ class Physics:
         for obj in self.objects:
             obj.create_gpuBuffer()
         self.objects_state_buffer: List[List[dict]] = []
-        self.dt_sim = 0.001
+        self.dt_sim = 0.01 #0.001
         self.t_sim = 0.0
         self.t_multiplier = 1.0
         self.buffer_maxlen = 100
