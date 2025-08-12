@@ -78,7 +78,7 @@ def create_balls(
             vertices=vertices,
             tri_indices=tri_indices,
             color=(1.0, 0.5, 1.0),
-            name=f"ball{i+1}",
+            name=f"ball",
             radius=radius,
             name_posi_local=(0,0,0),
             posi=posi,
@@ -87,19 +87,19 @@ def create_balls(
         obj_list.append(obj)
     return obj_list
 
-def oneball_center(radius: float = 0.8) ->list:
+def oneball(radius: float = 0.8, posi: Tuple|None=None, color: Tuple|None=None, texture_path = None) ->list:
     vertices, tri_indices = get_oneball_vertices_faces(subdiv=3, radius=radius)
     obj = Object3D(
         vertices=vertices,
         tri_indices=tri_indices,
         uv_mode = "spherical",
-        color= (1.0, 1.0, 1.0), #(0.2, 0.2, 0.8), # 青
-        name="ball_center",
+        color=color if color is not None else (0,0,0), #(0.2, 0.2, 0.8), # 青
+        name="ball",
         radius=radius,
         name_posi_local=(0, 0, 0),
-        posi=(0, 0, radius),
+        posi= posi if posi is not None else (0, 0, radius),
         is_move=True,
-        texture_path=param_changable["ball_texture"]
+        texture_path=texture_path
     )
     return [obj]
 

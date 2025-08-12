@@ -1,7 +1,7 @@
 # GLWidget.py
 
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
-from PyQt6.QtGui import QPainter, QFont, QPen, QColor, QPainterPath, QMouseEvent
+from PyQt6.QtGui import QPainter, QFont, QPen, QColor, QPainterPath, QMouseEvent, QKeyEvent
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from OpenGL import GL
 from OpenGL.GLU import gluUnProject
@@ -48,18 +48,19 @@ class GLWidget(QOpenGLWidget):
         self.plane_point  = glm.vec3(0,0,0)
         self.plane_normal = glm.vec3(0,0,1)
 
-        self.cam_direc = glm.vec3(1, -1, 1) #カメラの動けるラインは原点とこれを結んだ直線
-        self.cam_posi_parametric = 2.0
-        self.cam_posi = self.cam_direc * self.cam_posi_parametric  # カメラ位置のデフォ値
+        self.cam_posi = glm.vec3(2, -2, 2)  # カメラ位置のデフォ値
+        self.cam_target = glm.vec3(0, 0, 0)  # 注視点
+        
     def initializeGL(self) -> None:
         """
         OpenGL初期化処理。シェーダコンパイル、オブジェクト生成、背景色設定、動画保存準備など。
         """
         # --- シェーダプログラム読み込み・コンパイル ---
         self.renderer = ObjectRenderer()
-        self.checker, self.ray = create_nonobject_renderers()
+        self.checker, self.ray, self.cam_target_point = create_nonobject_renderers(target_position=self.cam_target)
         
         self.setMouseTracking(True) #クリックしなくてもマウス移動イベントを受け取れる
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus) # キーボードイベントを受け取るためにフォーカスを強制的に設定
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)
         self.frameCount = 0
@@ -72,12 +73,16 @@ class GLWidget(QOpenGLWidget):
         
         self.start_time = time.perf_counter()  # 描画開始時刻
         self.previous_time = self.start_time
+        self.is_paused: bool = False  # 一時停止フラグ
+        self.paused_duration = 0.0
+        self.pause_start_time = None
+
         self.record_fps_timer = create_periodic_timer(self, self.FpsTimer, 1000)
         self.ctrl_fps_timer = create_periodic_timer(self, self.update, max(5, 1000//int(param_changable["fps"])))
 
     def resizeGL(self, w: int, h: int) -> None:
         """
-        ウィンドウサイズ変更時に呼ばれる。OpenGLビューポートも更新。
+        ウィンドウサイズ変更時に自動で呼ばれる。OpenGLビューポートも更新。
         """
         GL.glViewport(0, 0, w, h)
         self.aspect = w / h if h > 0 else 1
@@ -86,11 +91,13 @@ class GLWidget(QOpenGLWidget):
         """
         3Dシーンの描画、QPainterによるラベル描画、動画保存処理。
         """
+        if self.is_paused:
+            return
         GL.glClearColor(*param_changable["bg_color"]) #背景色
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
         # 透視投影行列
-        self.view = glm.lookAt(self.cam_posi, glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
+        self.view = glm.lookAt(self.cam_posi, self.cam_target, glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
         self.proj = glm.perspective(glm.radians(param_changable["fov"]), self.aspect, 0.01, 100.0) #視野角， アスペクト比，近接面，遠方面
         
         # 正射影
@@ -101,13 +108,19 @@ class GLWidget(QOpenGLWidget):
         self.renderer.set_common(self.cam_posi, self.view, self.proj)
         self.checker.draw(self.view, self.proj, 
                 additional_uniform_dict={"L": float(param_changable["checkerboard"]["length"])}) 
+        self.cam_target_point.draw(self.view, self.proj, 
+                additional_uniform_dict={"position": self.cam_target})
         if self._ray_show:
             self.ray.draw(self.view, self.proj, 
                 additional_uniform_dict={"uP0":self._ray_p0, "uP1":self._ray_p1})
             
         current_time = time.perf_counter()
-        t = current_time - self.start_time  # 経過時間 [秒]
-        dt_frame = current_time - self.previous_time  # 前フレームからの経過時間 [秒]
+        t = current_time - self.start_time - self.paused_duration # 経過時間 [秒]
+        dt_frame = current_time - self.previous_time -self.paused_duration  # 前フレームからの経過時間 [秒]
+        # if (t>1):
+        #     print("t=",t)
+        # if (dt_frame > 1):
+        #     print("dt_frame=",dt_frame)
         # print(dt_frame)
         
         # --- シミュレーション更新 ---
@@ -157,6 +170,49 @@ class GLWidget(QOpenGLWidget):
         # self.update() #垂直同期切ったままこれ使うとfps500くらいになるので注意
         
     # ‑‑‑-------- Interaction ------------
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Space: #スペースキー
+            self.is_paused = not self.is_paused
+            print(self.is_paused)
+            if self.is_paused: #止まり始めた時間を記録
+                self.pause_start_time = time.perf_counter()
+            else:
+                # 停止してた時間を足す
+                if self.pause_start_time is not None:
+                    paused_time = time.perf_counter() - self.pause_start_time
+                    self.paused_duration += paused_time
+                    self.pause_start_time = None
+            return
+        
+        sensitivity = 0.01  # 移動・回転の感度
+        direction = self.cam_target - self.cam_posi  # 注視ベクトル
+        radius = glm.length(direction)
+
+        if radius < 1e-5:
+            return  # 0割防止
+
+        if event.key() == Qt.Key.Key_Up:
+            self.cam_target.z += sensitivity*10
+            self.cam_target.z = max(0.0, min(self.cam_target.z, 10.0)) # z座標limit
+
+        elif event.key() == Qt.Key.Key_Down:
+            self.cam_target.z -= sensitivity*10
+            self.cam_target.z = max(0.0, min(self.cam_target.z, 10.0))
+
+        elif event.key() == Qt.Key.Key_Left:
+            # （Z軸周りの反時計回り）
+            angle = sensitivity
+            rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
+            dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
+            self.cam_target = self.cam_posi + dir_rotated
+
+        elif event.key() == Qt.Key.Key_Right:
+            # （Z軸周りの時計回り）
+            angle = -sensitivity
+            rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
+            dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
+            self.cam_target = self.cam_posi + dir_rotated
+        
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         mods = event.modifiers()
         press_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
@@ -267,16 +323,17 @@ class GLWidget(QOpenGLWidget):
             
     def wheelEvent(self, event: QMouseEvent):
         angle = event.angleDelta().y()
-
+        length = glm.length(self.cam_target - self.cam_posi) #  カメラと注視点の距離
+        direc = glm.normalize(self.cam_target - self.cam_posi)  # 注視ベクトル
         # スクロールの感度（1段階で ±0.1 変化）
-        delta = -0.1 if angle < 0 else 0.1
-        self.cam_posi_parametric += delta
+        sensitivity = 0.1 #大きいほどちょっとの操作でめちゃズームする
+        delta = -sensitivity if angle < 0 else sensitivity
+        length -= delta
 
         # 最小・最大ズーム制限
-        self.cam_posi_parametric = max(0.1, min(self.cam_posi_parametric, 10.0))
+        length = max(0.1, min(length, 100.0))
 
-        self.update_camera()
-    
+        self.cam_posi = self.cam_target - direc * length
     # ‑‑‑-------- その他 ------------
     def _make_ray(self, x: float, y: float):
         """スクリーン座標(x,y)→ワールド空間のレイ(origin, dir)"""
@@ -299,6 +356,3 @@ class GLWidget(QOpenGLWidget):
         self.previous_frameCount = self.frameCount
         self.fpsUpdated.emit(fps) #シグナルをmain windowに送信
     
-    def update_camera(self):
-        self.cam_posi = self.cam_direc * self.cam_posi_parametric
-        self.update()

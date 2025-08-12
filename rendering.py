@@ -127,7 +127,7 @@ class NonObjectRenderer:
         additional_uniform_set = set(additional_uniform_dict.copy().keys())
         get_uniform_loc(self, prog=self.prog, name_set=base_uniform_set|additional_uniform_set)
         self.geo = GLGeometry()
-        self.geo.add_array(0, vertices, 2)  # layout(location=0) in vec2 ～ を想定 todo:柔軟に変更
+        self.geo.add_array(0, vertices, vertices.shape[1])  # layout(location=0) in vec2,3 ～ を想定 todo:柔軟に変更
         self.geo.set_elements(draw_mode, indices)
         
         self.draw_mode = draw_mode  # "tris", "strip"
@@ -175,10 +175,12 @@ class NonObjectRenderer:
             return GL.GL_LINES
         if draw_mode in ("line_strip",):
             return GL.GL_LINE_STRIP
+        if draw_mode in ("points", "point"):
+            return GL.GL_POINTS
         # 必要に応じて追加
         raise ValueError(f"Unsupported draw mode draw_mode: {draw_mode}")
 
-def create_nonobject_renderers(): #適宜追加
+def create_nonobject_renderers(target_position:glm.vec3): #適宜追加
     # ------------Checkerboard インスタンス-------------
     # UV 正方形（0..1）。位置計算は VS 側で CK_MIN/CK_MAX を使う構成を踏襲
     checker_verts = np.array(
@@ -219,4 +221,16 @@ def create_nonobject_renderers(): #適宜追加
         additional_uniform_dict={"uP0":glm.vec3(0, 0, 0), "uP1":glm.vec3(0, 0, 0), "uR0":float(1e-4), "uR1":float(0.05)},
     )
     
-    return checker, ray
+    # -------------- カメラ注視点を示す青点 --------------
+    blue_point_vert = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)  # ダミーの点　local座標
+    blue_point_idx = np.array([0], dtype=np.uint32)
+
+    cam_target_point = NonObjectRenderer(
+        name="cam_target_point",
+        vertices=blue_point_vert,
+        indices=blue_point_idx,
+        draw_mode="points",
+        additional_uniform_dict={"position": target_position}  # GLSL側で加算
+    )
+
+    return checker, ray, cam_target_point

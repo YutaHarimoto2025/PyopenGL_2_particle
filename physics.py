@@ -7,7 +7,7 @@ import glm
 import json
 
 from tools import working_dir, param, param_changable, make_datetime_file, xp, np
-from create_obj import create_boxes, create_axes, create_balls, oneball_center
+from create_obj import create_boxes, create_axes, create_balls, oneball
 from object3d import Object3D
 
 class Physics:
@@ -16,9 +16,9 @@ class Physics:
         self.axes = create_axes()
         self.box = create_boxes(scale=(1, 1, 1))
         self.balls = create_balls(num=10, radius=0.1)
-        self.one_ball = oneball_center()
-        self.objects: List[Object3D] = self.box + self.axes + self.balls
-        # self.objects: List[Object3D] = self.one_ball + self.axes
+        self.one_ball = oneball(color=(1.0, 1.0, 1.0), texture_path=param_changable["ball_texture"])  # 白い球
+        # self.objects: List[Object3D] = self.box + self.axes + self.balls
+        self.objects: List[Object3D] = self.one_ball + self.axes
         self._reindex_objects()
         for obj in self.objects:
             obj.create_gpuBuffer()
@@ -139,13 +139,13 @@ class Physics:
                 }
                 for obj in self.objects
             ]
-        t_sim_foreard = dt_frame * self.t_multiplier
-        self.t_sim += t_sim_foreard
+        t_sim_forward = dt_frame * self.t_multiplier
+        self.t_sim += t_sim_forward
         
-        idx0 = int(t_sim_foreard / self.dt_sim) #切り捨て
+        idx0 = int(t_sim_forward / self.dt_sim) #切り捨て
         idx1 = idx0 + 1
         
-        alpha = t_sim_foreard / self.dt_sim - idx0 #端数（0~1）
+        alpha = t_sim_forward / self.dt_sim - idx0 #端数（0~1）
         
         #バッファ使用率（0~1）1を超過するならシミュレーションが追いついてない
         buffer_usage_ratio = idx1 / buff_len 
