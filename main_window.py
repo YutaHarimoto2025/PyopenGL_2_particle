@@ -72,7 +72,7 @@ class MainWindow(QMainWindow):
         # 左上ドック: オブジェクト一覧リスト
         self.list_widget = QListWidget()
         self.left1_dock = self._create_dock("オブジェクト名: 座標", self.list_widget, Qt.DockWidgetArea.LeftDockWidgetArea)
-        self.left1_dock.setFixedWidth(200)  # 横幅固定
+        self.left1_dock.setFixedWidth(250)  # 横幅固定
 
         # 左下ドック: 名前入力欄
         self.name_input = QTextEdit()

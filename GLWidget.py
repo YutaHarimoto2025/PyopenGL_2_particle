@@ -206,6 +206,12 @@ class GLWidget(QOpenGLWidget):
                 vertices, tri_indices = get_oneball_vertices_faces(subdiv=3, radius=r)
 
                 # Object3D を生成して配置（動かさない）
+                num_ball = sum(1 for obj in self.phys.objects if "ball" in obj.name)
+                nickname = self.parent().name_input.toPlainText().strip()
+                if nickname != "":
+                    name= nickname
+                else:
+                    name = f"ball{num_ball+1}"
                 ball = Object3D(
                     vertices=vertices,
                     tri_indices=tri_indices,
@@ -213,7 +219,7 @@ class GLWidget(QOpenGLWidget):
                     posi=(center.x, center.y, center.z),
                     radius=r,
                     is_move=True,
-                    name="ball_appended",
+                    name=name,
                 )
                 self.makeCurrent()
                 ball.create_gpuBuffer()  # GPUバッファを生成
