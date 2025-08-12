@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
         radius_slider = QSlider(Qt.Orientation.Horizontal)
         radius_slider.setRange(int(0.01 * self.slider_radius_rate), int(2 * self.slider_radius_rate))
-        radius_slider.setValue(int(self.gl.radius) * self.slider_radius_rate) #デフォルト値
+        radius_slider.setValue(int(self.gl.radius * self.slider_radius_rate)) #デフォルト値
         radius_slider.valueChanged.connect(self._radius_changed)
         tb.addWidget(QLabel("半径"))
         tb.addWidget(radius_slider)

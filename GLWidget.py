@@ -34,7 +34,7 @@ class GLWidget(QOpenGLWidget):
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
         self.show_labels: bool = False  # ラベル表示フラグ
         self.randomize_appended_obj_color: bool = False  # ランダム色フラグ
-        self.radius: float = 1.0  # 半径（スライダーで調整）
+        self.radius: float = 0.1  # 半径（スライダーで調整）
         
         self.previous_frameCount:int = 0
         
@@ -48,6 +48,9 @@ class GLWidget(QOpenGLWidget):
         self.plane_point  = glm.vec3(0,0,0)
         self.plane_normal = glm.vec3(0,0,1)
 
+        self.cam_direc = glm.vec3(1, -1, 1) #カメラの動けるラインは原点とこれを結んだ直線
+        self.cam_posi_parametric = 2.0
+        self.cam_posi = self.cam_direc * self.cam_posi_parametric  # カメラ位置のデフォ値
     def initializeGL(self) -> None:
         """
         OpenGL初期化処理。シェーダコンパイル、オブジェクト生成、背景色設定、動画保存準備など。
@@ -87,8 +90,7 @@ class GLWidget(QOpenGLWidget):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
         # 透視投影行列
-        cam_posi = glm.vec3(2, -2, 2)  # カメラ位置
-        self.view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
+        self.view = glm.lookAt(self.cam_posi, glm.vec3(0,0,0), glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
         self.proj = glm.perspective(glm.radians(param_changable["fov"]), self.aspect, 0.01, 100.0) #視野角， アスペクト比，近接面，遠方面
         
         # 正射影
@@ -96,7 +98,7 @@ class GLWidget(QOpenGLWidget):
         # self.view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,1,0))
         # self.proj = glm.ortho(-5.0, 5.0, -5.0, 5.0, 0.01, 100.0)
         
-        self.renderer.set_common(cam_posi, self.view, self.proj)
+        self.renderer.set_common(self.cam_posi, self.view, self.proj)
         self.checker.draw(self.view, self.proj, 
                 additional_uniform_dict={"L": float(param_changable["checkerboard"]["length"])}) 
         if self._ray_show:
@@ -154,13 +156,7 @@ class GLWidget(QOpenGLWidget):
         self.previous_time = current_time
         # self.update() #垂直同期切ったままこれ使うとfps500くらいになるので注意
         
-    def FpsTimer(self):
-        # 1秒ごとの増分を計算
-        fps = self.frameCount - self.previous_frameCount
-        self.previous_frameCount = self.frameCount
-        self.fpsUpdated.emit(fps) #シグナルをmain windowに送信
-        
-    # ‑‑‑ Interaction
+    # ‑‑‑-------- Interaction ------------
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         mods = event.modifiers()
         press_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
@@ -204,12 +200,12 @@ class GLWidget(QOpenGLWidget):
                     # planeがz=0の場合だけでちゃんと機能する
                     print("hit point is too far from origin, skipping")
                     return
+                # ----- Object3D ballを生成 -----
                 r = float(self.radius)  # スライダーで更新される半径
                 center = P+ self.plane_normal * r  # 平面上の点から半径分だけ上にずらす
+                subdiv = 2 if r < 0.5 else 3
+                vertices, tri_indices = get_oneball_vertices_faces(subdiv=subdiv, radius=r)
 
-                vertices, tri_indices = get_oneball_vertices_faces(subdiv=3, radius=r)
-
-                # ----- Object3D ballを生成 -----
                 # 名前を決める
                 nickname = self.parent().name_input.toPlainText().strip()
                 if nickname != "":
@@ -268,7 +264,20 @@ class GLWidget(QOpenGLWidget):
 
         finally:
             self.update()
+            
+    def wheelEvent(self, event: QMouseEvent):
+        angle = event.angleDelta().y()
+
+        # スクロールの感度（1段階で ±0.1 変化）
+        delta = -0.1 if angle < 0 else 0.1
+        self.cam_posi_parametric += delta
+
+        # 最小・最大ズーム制限
+        self.cam_posi_parametric = max(0.1, min(self.cam_posi_parametric, 10.0))
+
+        self.update_camera()
     
+    # ‑‑‑-------- その他 ------------
     def _make_ray(self, x: float, y: float):
         """スクリーン座標(x,y)→ワールド空間のレイ(origin, dir)"""
         # ビューポート（OpenGL座標系は左下原点なのでY反転）
@@ -283,3 +292,13 @@ class GLWidget(QOpenGLWidget):
         ro = near_world # ray origin
         rd = glm.normalize(far_world - near_world) #単位方向ベクトル ray direction
         return ro, rd
+    
+    def FpsTimer(self):
+        # 1秒ごとの増分を計算
+        fps = self.frameCount - self.previous_frameCount
+        self.previous_frameCount = self.frameCount
+        self.fpsUpdated.emit(fps) #シグナルをmain windowに送信
+    
+    def update_camera(self):
+        self.cam_posi = self.cam_direc * self.cam_posi_parametric
+        self.update()
