@@ -32,7 +32,6 @@ class GLWidget(QOpenGLWidget):
     def __init__(self, status_callback, parent=None) -> None:
         super().__init__(parent)
         self._status_callback = status_callback
-        self.total_frame: int = 0                # 保存する総フレーム数
         self.aspect: float = 1.0                 # ウィンドウアスペクト比
         self.show_labels: bool = False  # ラベル表示フラグ
         self.randomize_appended_obj_color: bool = False  # ランダム色フラグ
@@ -58,6 +57,7 @@ class GLWidget(QOpenGLWidget):
         OpenGL初期化処理。シェーダコンパイル、オブジェクト生成、背景色設定、動画保存準備など。
         """
         # --- シェーダプログラム読み込み・コンパイル ---
+        apply_common_rendering_settings()
         self.renderer = ObjectRenderer()
         self.checker, self.ray, self.cam_target_point = create_nonobject_renderers(target_position=self.cam_target)
         
@@ -98,7 +98,6 @@ class GLWidget(QOpenGLWidget):
         """
         GL.glClearColor(*param_changable["bg_color"]) #背景色
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-        GL.glEnable(GL.GL_DEPTH_TEST) #これを毎回呼ばないと追加objが遠くても全面に出てしまう
 
         # 透視投影行列
         self.view = glm.lookAt(self.cam_posi, self.cam_target, glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
@@ -109,6 +108,7 @@ class GLWidget(QOpenGLWidget):
         # self.view = glm.lookAt(cam_posi, glm.vec3(0,0,0), glm.vec3(0,1,0))
         # self.proj = glm.ortho(-5.0, 5.0, -5.0, 5.0, 0.01, 100.0)
         
+        # NonObjectの描画
         self.renderer.set_common(self.cam_posi, self.view, self.proj)
         self.checker.draw(self.view, self.proj, 
                 additional_uniform_dict={"L": float(param_changable["checkerboard"]["length"])}) 
@@ -163,7 +163,12 @@ class GLWidget(QOpenGLWidget):
 
         # --- フレームカウント管理・動画保存処理 ---
         if self.is_saving:
+            fbo = self.defaultFramebufferObject()
+            GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, fbo)
+            GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)   # 内部FBOのカラー添付点
+            GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)  # 安全策
             self.ffmpeg.step(self.frameCount)
+            assert GL.glCheckFramebufferStatus(GL.GL_READ_FRAMEBUFFER) == GL.GL_FRAMEBUFFER_COMPLETE
         
         self.frameCount += 1
         self.previous_time = current_time
@@ -182,7 +187,7 @@ class GLWidget(QOpenGLWidget):
     def wheelEvent(self, event):
         self.handler.handle_wheel(event)
         
-    # 追加：ウィンドウ外に出た瞬間に回転停止
+    # ウィンドウ外に出た瞬間に回転停止
     def leaveEvent(self, event):
         # EventHandler 側のエッジ回転を止める
         self.handler._stop_edge_rotation()

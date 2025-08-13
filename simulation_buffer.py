@@ -24,7 +24,7 @@ class SimBuffer:
         self._reindex_objects()
         for obj in self.objects:
             obj.create_gpuBuffer()
-            if "ball" in obj.name:
+            if "ball" in obj.name: #球に番号をふる
                 idx = obj.name.find("ball") + len("ball")
                 obj.name = obj.name[:idx] + str(ball_counter) + obj.name[idx:]
                 ball_counter += 1
@@ -33,6 +33,8 @@ class SimBuffer:
         self.is_saving_jsonlog: bool = is_saving_jsonlog
         self.dt_sim = 0.005 #0.001
         self.t_sim = 0.0
+        self.save_time_threshold = 0.0
+        self.save_interval_sec = param.jsonl_save_interval_sec #枚ステップ保存したかったらメチャ小さくする
         self.t_multiplier = 1.0
         self.buffer_maxlen = 20
         
@@ -132,8 +134,9 @@ class SimBuffer:
         self.start_stepping()   
         
         # JSONLに一行追記
-        if self.is_saving_jsonlog:
+        if self.is_saving_jsonlog and self.t_sim > self.save_time_threshold:
             self.append_jsonl_state(interp_state, buffer_usage_ratio)
+            self.save_time_threshold += self.save_interval_sec
         
     def get_interp_state(self, dt_frame: float) -> Tuple[List[dict], float]:
         buff_len = len(self.objects_state_buffer)
@@ -149,7 +152,6 @@ class SimBuffer:
             ]
         t_sim_forward = dt_frame * self.t_multiplier
         self.t_sim += t_sim_forward
-        
         idx0 = int(t_sim_forward / self.dt_sim) #切り捨て
         idx1 = idx0 + 1
         

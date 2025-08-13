@@ -1,9 +1,10 @@
-is_saving: false #動画やログを保存するかどうか
+is_saving: true #動画やログを保存するかどうか
 save_dir: "result_test" #result_local
 case_name: ""
 movie:
   fps: 50
   total_sec: 15
+jsonl_save_interval_sec: 0.01
 
 seed: 42
 
