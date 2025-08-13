@@ -76,7 +76,7 @@ class Object3D:
         elif "ball" in self.name:
             raise ValueError("Ball objects must specify a radius !!")
         self.is_move = is_move  # 動くかどうか
-        self.obj_id: int | None = None #physicsで使う
+        self.obj_id: int | None = None #SimBufferで使う
         
         # 初期のモデル行列　動かないものはこれを使いまわす
         self.model_mat = glm.mat4(1)

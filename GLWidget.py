@@ -15,7 +15,7 @@ from graphic_tools import load_shader, compute_normals, _ray_hit_plane, _ray_hit
 from create_obj import create_boxes, create_axes, get_oneball_vertices_faces  # オブジェクト生成はここに分離
 from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffepeg import MovieFFmpeg
-from physics import Physics  # 物理シミュレーションデータ
+from simulation_buffer import SimBuffer  # 物理シミュレーションデータ
 from rendering import apply_common_rendering_settings, ObjectRenderer, create_nonobject_renderers
 from event_handler import EventHandler
 
@@ -70,8 +70,8 @@ class GLWidget(QOpenGLWidget):
         if self.is_saving:
             self.ffmpeg = MovieFFmpeg(self.width(), self.height())
         
-        self.phys = Physics(self.is_saving)  # 物理シミュレーションデータ
-        self.phys.start_stepping()  # シミュレーションスレッド開始
+        self.simbuff = SimBuffer(self.is_saving)  # 物理シミュレーションデータ
+        self.simbuff.start_stepping()  # シミュレーションスレッド開始
         self._status_callback() # 初期状態のステータスを表示
         
         self.handler = EventHandler(self)
@@ -79,7 +79,7 @@ class GLWidget(QOpenGLWidget):
         self.start_time = time.perf_counter()  # 描画開始時刻
         self.previous_time = self.start_time
         self.is_paused: bool = False  # 一時停止フラグ
-        self.paused_duration = 0.0
+        self.total_paused_time = 0.0
         self.pause_start_time = None
 
         self.record_fps_timer = create_periodic_timer(self, self.FpsTimer, 1000)
@@ -96,10 +96,9 @@ class GLWidget(QOpenGLWidget):
         """
         3Dシーンの描画、QPainterによるラベル描画、動画保存処理。
         """
-        if self.is_paused:
-            return
         GL.glClearColor(*param_changable["bg_color"]) #背景色
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+        GL.glEnable(GL.GL_DEPTH_TEST) #これを毎回呼ばないと追加objが遠くても全面に出てしまう
 
         # 透視投影行列
         self.view = glm.lookAt(self.cam_posi, self.cam_target, glm.vec3(0,0,1)) #カメラ位置，注視点， 上方向
@@ -118,22 +117,23 @@ class GLWidget(QOpenGLWidget):
         if self._ray_show:
             self.ray.draw(self.view, self.proj, 
                 additional_uniform_dict={"uP0":self._ray_p0, "uP1":self._ray_p1})
-            
-        current_time = time.perf_counter()
-        t = current_time - self.start_time - self.paused_duration # 経過時間 [秒]
-        self.dt_frame = current_time - self.previous_time -self.paused_duration  # 前フレームからの経過時間 [秒]
         
-        # --- シミュレーション更新 ---
-        self.phys.update_objects(t, self.dt_frame, appended=self.appended_object, removed_ids=self.removed_object_idx)
-        if self.appended_object:
-            self._status_callback(text = "オブジェクト追加しました")
-            self.appended_object.clear()
-        if self.removed_object_idx:
-            self._status_callback(text = "オブジェクト削除しました")
-            self.removed_object_idx.clear()
+        current_time = time.perf_counter()
+        # t = current_time - self.start_time - self.total_paused_time # 経過時間 [秒]
+        dt_frame = current_time - self.previous_time  # 前フレームからの経過時間 [秒]
+
+        if not self.is_paused:
+            # --- シミュレーション更新 ---
+            self.simbuff.update_objects(dt_frame, appended=self.appended_object, removed_ids=self.removed_object_idx)
+            if self.appended_object:
+                self._status_callback(text = "オブジェクト追加しました")
+                self.appended_object.clear()
+            if self.removed_object_idx:
+                self._status_callback(text = "オブジェクト削除しました")
+                self.removed_object_idx.clear()
 
         # --- オブジェクトの描画 ---
-        for obj in self.phys.objects:
+        for obj in self.simbuff.objects:
             self.renderer.set_each(obj)   # uModel / uNormalMatrix / uColor             # uColor
             if obj.name == "box":
                 GL.glDisable(GL.GL_CULL_FACE)
@@ -148,7 +148,7 @@ class GLWidget(QOpenGLWidget):
             font = QFont("Noto Sans CJK JP", 20, QFont.Weight.Normal)
             painter.setFont(font)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-            for obj in self.phys.objects:
+            for obj in self.simbuff.objects:
                 pos = obj.localframe_to_window(self.view, self.proj, (self.width(), self.height()))
                 r, g, b, a = [int(c*255) for c in obj.color]
                  # 輪郭（黒線）
