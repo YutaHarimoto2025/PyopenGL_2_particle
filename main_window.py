@@ -194,6 +194,7 @@ class MainWindow(QMainWindow):
         self.gl.ctrl_fps_timer.start(max(5, 1000 // int(param_changable["fps"])))
         if hasattr(self.gl.phys, "textural_ball") and self.gl.phys.textural_ball:
             self.gl.phys.textural_ball[0].update_texture(param_changable["ball_texture"])
+        self.gl.handler.refresh_params()  
 
 # --- エントリーポイント ---
 if __name__ == "__main__":

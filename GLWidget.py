@@ -62,6 +62,7 @@ class GLWidget(QOpenGLWidget):
         self.checker, self.ray, self.cam_target_point = create_nonobject_renderers(target_position=self.cam_target)
         
         self.setMouseTracking(True) #クリックしなくてもマウス移動イベントを受け取れる
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True) # ホバーイベントを受け取る
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus) # キーボードイベントを受け取るためにフォーカスを強制的に設定
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)
@@ -120,15 +121,10 @@ class GLWidget(QOpenGLWidget):
             
         current_time = time.perf_counter()
         t = current_time - self.start_time - self.paused_duration # 経過時間 [秒]
-        dt_frame = current_time - self.previous_time -self.paused_duration  # 前フレームからの経過時間 [秒]
-        # if (t>1):
-        #     print("t=",t)
-        # if (dt_frame > 1):
-        #     print("dt_frame=",dt_frame)
-        # print(dt_frame)
+        self.dt_frame = current_time - self.previous_time -self.paused_duration  # 前フレームからの経過時間 [秒]
         
         # --- シミュレーション更新 ---
-        self.phys.update_objects(t, dt_frame, appended=self.appended_object, removed_ids=self.removed_object_idx)
+        self.phys.update_objects(t, self.dt_frame, appended=self.appended_object, removed_ids=self.removed_object_idx)
         if self.appended_object:
             self._status_callback(text = "オブジェクト追加しました")
             self.appended_object.clear()
@@ -185,6 +181,12 @@ class GLWidget(QOpenGLWidget):
 
     def wheelEvent(self, event):
         self.handler.handle_wheel(event)
+        
+    # 追加：ウィンドウ外に出た瞬間に回転停止
+    def leaveEvent(self, event):
+        # EventHandler 側のエッジ回転を止める
+        self.handler._stop_edge_rotation()
+        event.accept()
 
     # ‑‑‑-------- その他 ------------
     def _make_ray(self, x: float, y: float):

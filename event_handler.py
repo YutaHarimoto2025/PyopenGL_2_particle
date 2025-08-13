@@ -27,24 +27,19 @@ class EventHandler:
     def __init__(self, widget) -> None:
         self.w = widget  # GLWidget への参照
 
-        # 既定値（param_changable が未設定でも安全に動くように）
-        self._defaults = {
-            "pan_speed"       : 2.0,   # 単位/秒（前後左右移動）
-            "yaw_speed"       : 1.5,   # rad/秒（ヨー）
-            "elev_speed"      : 1.0,   # rad/秒（仰角）
-            "z_speed"         : 2.0,   # 単位/秒（カメラ位置 z）
-            "edge_ratio"      : 0.1,   # 画面端の閾値（20%）
-            "z_limit_min"     : -10.0,
-            "z_limit_max"     :  10.0,
+        # 管理対象キー集合
+        self.param_keys = {
+            "pan_speed", # 単位/秒（前後左右移動）矢印キー
+            "yaw_speed", # rad/秒（ヨー）　スクリーン左右端
+            "elev_speed", # rad/秒（仰角）スクリーン上下端
+            "z_camposi_speed",     # 単位/秒（カメラ位置 z）
+            "edge_ratio",  # 画面端の閾値（10%）
+            "z_limit_min", # target z の下限
+            "z_limit_max"  # target z の上限
         }
-        # 実効パラメータ
-        self.pan_speed   = self._defaults["pan_speed"]
-        self.yaw_speed   = self._defaults["yaw_speed"]
-        self.elev_speed  = self._defaults["elev_speed"]
-        self.z_speed     = self._defaults["z_speed"]
-        self.edge_ratio  = self._defaults["edge_ratio"]
-        self.z_limit_min = self._defaults["z_limit_min"]
-        self.z_limit_max = self._defaults["z_limit_max"]
+
+        # ハイパラ辞書（実効値）
+        self.hyper_pm: dict[str, float] = {}
 
         # 画面端ジェスチャ用
         self.edge_dir_x = 0  # -1: 左端, 0: なし, 1: 右端
@@ -58,26 +53,11 @@ class EventHandler:
 
     # ----------------- パラメータ更新 -----------------
     def refresh_params(self) -> None:
-        """param_changable から event パラメータを再読込。"""
-        try:
-            from tools import param_changable
-            ev = param_changable.get("event", {})
-            self.pan_speed   = float(ev.get("pan_speed"  , self._defaults["pan_speed"]))
-            self.yaw_speed   = float(ev.get("yaw_speed"  , self._defaults["yaw_speed"]))
-            self.elev_speed  = float(ev.get("elev_speed" , self._defaults["elev_speed"]))
-            self.z_speed     = float(ev.get("z_speed"    , self._defaults["z_speed"]))
-            self.edge_ratio  = float(ev.get("edge_ratio" , self._defaults["edge_ratio"]))
-            self.z_limit_min = float(ev.get("z_limit_min", self._defaults["z_limit_min"]))
-            self.z_limit_max = float(ev.get("z_limit_max", self._defaults["z_limit_max"]))
-        except Exception:
-            # tools / param が未ロードでも安全に続行
-            self.pan_speed   = self._defaults["pan_speed"]
-            self.yaw_speed   = self._defaults["yaw_speed"]
-            self.elev_speed  = self._defaults["elev_speed"]
-            self.z_speed     = self._defaults["z_speed"]
-            self.edge_ratio  = self._defaults["edge_ratio"]
-            self.z_limit_min = self._defaults["z_limit_min"]
-            self.z_limit_max = self._defaults["z_limit_max"]
+        """param_changable から event パラメータを再読込し、hyper_pm と属性を更新。"""
+        from tools import param_changable
+        for key in self.param_keys:
+            self.hyper_pm[key] = float(param_changable["event"][key])
+            setattr(self, key, self.hyper_pm[key])
 
     # ----------------- GLWidget からの委譲イベント -----------------
     def handle_key_press(self, event: QKeyEvent) -> None:
@@ -98,6 +78,13 @@ class EventHandler:
             self._handle_key_noctrl(event)
 
         self.w.update()
+    
+    def _stop_edge_rotation(self) -> None:
+        """エッジ回転を即停止。外からも呼べるように公開ヘルパ化。"""
+        if self.edge_dir_x != 0 or self.edge_dir_y != 0:
+            self.edge_dir_x = 0
+            self.edge_dir_y = 0
+            self.edge_timer.stop()
 
     def handle_mouse_move(self, event: QMouseEvent) -> None:
         x = float(event.position().x())
@@ -114,7 +101,7 @@ class EventHandler:
             top_edge    = y <= self.edge_ratio * h
             bottom_edge = y >= (1.0 - self.edge_ratio) * h
 
-            new_dir_x = (-1 if left_edge else (1 if right_edge else 0))
+            new_dir_x = (1 if left_edge else (-1 if right_edge else 0))
             new_dir_y = (-1 if top_edge else (1 if bottom_edge else 0))
 
             if (new_dir_x != self.edge_dir_x) or (new_dir_y != self.edge_dir_y):
@@ -259,7 +246,7 @@ class EventHandler:
             self._pan(-left * s)
 
     def _handle_key_ctrl(self, event: QKeyEvent) -> None:
-        # Ctrl+矢印＝画面基準パン（維持）。時間基準でスケーリング。
+        #! 今後他の機能にする（現状は画面基準パンのまま）
         forward, left = self._forward_left_xy()
         dt = self._dt()
         s = self.pan_speed * dt
@@ -330,9 +317,9 @@ class EventHandler:
         self.w.cam_target += move_vec
 
     def _move_camera_z(self, sign: int) -> None:
-        """カメラ位置 z のみ移動。target は固定。"""
+        """カメラ位置 z のみ移動。target は固定。将来仰角で上下させたっていい"""
         dt = self._dt()
-        dz = float(sign) * self.z_speed * dt
+        dz = float(sign) * self.z_camposi_speed * dt
         new_z = float(self.w.cam_posi.z) + dz
         # z制限は任意（必要なら適用）
         self.w.cam_posi.z = new_z
@@ -354,5 +341,6 @@ class EventHandler:
             self._yaw_rotate(self.edge_dir_x * self.yaw_speed * dt)
         # 上下端 → 仰角変更
         if self.edge_dir_y != 0:
-            self._change_elevation(-self.edge_dir_y * self.elev_speed * dt)  # 画面上端(-1)で仰角を上げるので -sign
+            # 画面上端(-1)で仰角を上げるので -sign
+            self._change_elevation(-self.edge_dir_y * self.elev_speed * dt)
         self.w.update()
