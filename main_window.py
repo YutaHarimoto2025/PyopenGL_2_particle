@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
         """
         すべてのオブジェクトを削除し、UIもリセット。
         """
-        self.gl.phys.objects.clear()
+        self.gl.simbuff.objects.clear()
         self.gl.update()
         self.list_widget.clear()
         self.status.showMessage("すべてのオブジェクトを削除しました")
@@ -173,9 +173,9 @@ class MainWindow(QMainWindow):
         # UI更新のため少し待つ
         if text is None:
             text=""
-        self.status.showMessage(f"オブジェクト数: {len(self.gl.phys.objects)} | {text}") 
+        self.status.showMessage(f"オブジェクト数: {len(self.gl.simbuff.objects)} | {text}") 
         self.list_widget.clear()
-        for i, obj in enumerate(self.gl.phys.objects, start=1):
+        for i, obj in enumerate(self.gl.simbuff.objects, start=1):
             self.list_widget.addItem(f"{obj.name}: ({obj.position.x:.2f}, {obj.position.y:.2f}, {obj.position.z:.2f})")
             
     def _toggle_labels(self, checked: bool) -> None:
@@ -192,8 +192,8 @@ class MainWindow(QMainWindow):
         update_param_changable()  # パラメータの更新
         # 新しいfps値でタイマー再設定, 厳密に同じにはならない
         self.gl.ctrl_fps_timer.start(max(5, 1000 // int(param_changable["fps"])))
-        if hasattr(self.gl.phys, "textural_ball") and self.gl.phys.textural_ball:
-            self.gl.phys.textural_ball[0].update_texture(param_changable["ball_texture"])
+        if hasattr(self.gl.simbuff, "textural_ball") and self.gl.simbuff.textural_ball:
+            self.gl.simbuff.textural_ball[0].update_texture(param_changable["ball_texture"])
 
 # --- エントリーポイント ---
 if __name__ == "__main__":
@@ -201,6 +201,7 @@ if __name__ == "__main__":
     format.setVersion(3, 0) # OpenGL 3.3 Core Profile
     format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
     format.setDepthBufferSize(24) # 深度バッファのビット数
+    format.setStencilBufferSize(8)
     format.setSamples(4) #アンチエイリアスのサンプル数 
     format.setSwapInterval(0) # 垂直同期切ってfps爆速になる魔法，普段はディスプレイのfpsと同じがやや遅いか
     # format.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer) #ダブルバッファでなめらかに

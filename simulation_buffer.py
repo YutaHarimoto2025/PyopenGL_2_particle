@@ -10,26 +10,31 @@ from tools import working_dir, param, param_changable, make_datetime_file, xp, n
 from create_obj import create_boxes, create_axes, create_balls, one_ball
 from object3d import Object3D
 
-class Physics:
+class SimBuffer:
     def __init__(self, is_saving_jsonlog):
         # ---- オブジェクトを生成 -----
         self.axes = create_axes()
         self.box = create_boxes(scale=(1, 1, 1))
         self.textural_ball = one_ball(color=(1.0,1.0,1.0), texture_path=param_changable["ball_texture"])
-        self.balls = create_balls(num=10, radius=0.1)
+        self.balls = create_balls(num=100, radius=0.1)
         self.objects: List[Object3D] = self.box + self.axes + self.balls 
         # self.objects: List[Object3D] = self.one_ball + self.axes
         # ------------------------------
+        ball_counter = 1
         self._reindex_objects()
         for obj in self.objects:
             obj.create_gpuBuffer()
+            if "ball" in obj.name:
+                idx = obj.name.find("ball") + len("ball")
+                obj.name = obj.name[:idx] + str(ball_counter) + obj.name[idx:]
+                ball_counter += 1
         self.objects_state_buffer: List[List[dict]] = []
         
         self.is_saving_jsonlog: bool = is_saving_jsonlog
-        self.dt_sim = 0.01 #0.001
+        self.dt_sim = 0.005 #0.001
         self.t_sim = 0.0
         self.t_multiplier = 1.0
-        self.buffer_maxlen = 100
+        self.buffer_maxlen = 20
         
         self._run_flag = threading.Event() #cpuスレッド制御用のrunループ継続フラグ
         # .set()でON, .clear()でOFF, .is_set()で状態確認, .wait()でONまで待機
@@ -90,7 +95,7 @@ class Physics:
         if self._onestep_thread is not None:
             self._onestep_thread.join(timeout=1.0) #最大1秒待機して終了を待つ
 
-    def update_objects(self, t: float, dt_frame: float, appended:List[Object3D]=None, removed_ids:List[int]=None) -> None:
+    def update_objects(self, dt_frame: float, appended:List[Object3D]=None, removed_ids:List[int]=None) -> None:
         """
         t: 現実時間またはシミュレーション時間
         dt_frame: 今回の描画に必要な「補間秒数」

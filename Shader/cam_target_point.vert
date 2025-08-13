@@ -5,5 +5,5 @@ uniform mat4 uView, uProj;
 
 void main() {
     gl_Position = uProj * uView * vec4(aPos + position, 1.0);
-    gl_PointSize = 5.0; // 必要に応じて大きさ指定 正方形の辺をpixel数で指定
+    gl_PointSize = 7.5; // 必要に応じて大きさ指定 正方形の辺をpixel数で指定
 }
