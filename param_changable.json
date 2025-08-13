@@ -12,14 +12,14 @@
   },
   "event": {
     "pan_speed": 10.0,
-    "yaw_speed": 2.0,
-    "elev_speed": 1.0,
-    "z_camposi_speed": 2.0,
+    "yaw_speed": 0.7,
+    "elev_speed": 0.7,
+    "z_camposi_speed": 5.0,
     "edge_ratio": 0.1,
     "z_limit_min": 0.0,
     "z_limit_max": 20.0
   },
   "fov": 60.0,
-  "fps": 20,
+  "fps": 60,
   "sunrise": false
 }

@@ -192,8 +192,13 @@ class MainWindow(QMainWindow):
         update_param_changable()  # パラメータの更新
         # 新しいfps値でタイマー再設定, 厳密に同じにはならない
         self.gl.ctrl_fps_timer.start(max(5, 1000 // int(param_changable["fps"])))
+        
         if hasattr(self.gl.simbuff, "textural_ball") and self.gl.simbuff.textural_ball:
             self.gl.simbuff.textural_ball[0].update_texture(param_changable["ball_texture"])
+        
+        self.gl.handler.refresh_params()
+            
+        
 
 # --- エントリーポイント ---
 if __name__ == "__main__":

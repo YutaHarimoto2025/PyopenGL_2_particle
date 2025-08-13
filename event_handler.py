@@ -173,7 +173,7 @@ class EventHandler:
             if nickname != "":
                 name = nickname
             else:
-                num_ball = sum(1 for obj in self.w.phys.objects if "ball" in getattr(obj, "name", ""))
+                num_ball = sum(1 for obj in self.w.simbuff.objects if "ball" in getattr(obj, "name", ""))
                 name = f"ball{num_ball+1}"
 
             if getattr(self.w, "randomize_appended_obj_color", False):
@@ -203,7 +203,7 @@ class EventHandler:
             hit_idx = -1
             hit_t = float("inf")
             removed_obj = None
-            for obj in self.w.phys.objects:
+            for obj in self.w.simbuff.objects:
                 if "ball" not in getattr(obj, "name", ""):
                     continue
                 center = _glm.vec3(*obj.position)
@@ -263,12 +263,15 @@ class EventHandler:
     def _toggle_pause(self) -> None:
         self.w.is_paused = not self.w.is_paused
         if self.w.is_paused:
+            self.w._status_callback(text = "一時停止")
             self.w.pause_start_time = self._perf_counter()
         else:
             if self.w.pause_start_time is not None:
-                paused_time = self._perf_counter() - self.w.pause_start_time
-                self.w.paused_duration += paused_time
+                self.w.total_paused_time += self._perf_counter() - self.w.pause_start_time
                 self.w.pause_start_time = None
+                self.w._status_callback(text = "再開")
+                self.w.update()
+        return
 
     def _perf_counter(self) -> float:
         import time
