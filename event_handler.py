@@ -2,39 +2,91 @@
 from __future__ import annotations
 
 import math
-from typing import Optional
+from typing import Optional, Tuple
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QMouseEvent, QKeyEvent
 import glm
 
 class EventHandler:
     """
-    GLWidget のインタラクションを責務分離して扱うハンドラクラス。
-    - キー入力: 一時停止、仰角変更、Z軸回転（ヨー）、パン（Ctrl+矢印）
-    - マウス移動: エッジパン（左右20%ゾーン）、Ctrl+移動でレイの可視化
-    - マウス押下: Ctrl+左で球生成、Ctrl+右で球削除
+    GLWidget のインタラクションを集約するクラス。
+    - すべての操作を「速度 × dt_frame」でスケーリング（時間基準）
+    - キー入力:
+        Space         : 一時停止/再開
+        矢印（Ctrl無）: 前後左右のパン移動
+        PageUp/Down   : カメラ位置 z の上下（target は固定）
+        矢印（Ctrl有）: 画面基準パン（従来通り）
+    - マウス移動:
+        Ctrlなし: 画面端で自動回転（左右=ヨー，上下=仰角）
+        Ctrlあり: レイの可視化更新
+    - マウス押下（Ctrlあり）:
+        左クリック=球生成 / 右クリック=最前面の球削除
     - ホイール: ドリー（ズーム）
+    - パラメータは param_changable["event"][...] を参照
     """
     def __init__(self, widget) -> None:
         self.w = widget  # GLWidget への参照
 
-        # 感度・制限（必要に応じて param.yaml へ移してもよい）
-        self.angle_step = 0.03           # ラジアン。上下キーの仰角変化量
-        self.yaw_step = 0.03             # ラジアン。左右キーのヨー角変化量（Z軸回転）
-        self.pan_step = 0.1              # Ctrl+矢印やエッジパンの1ステップ移動量
-        self.z_limit_min = -10.0         # 注視点Zの下限（仰角の負側を許可）
-        self.z_limit_max =  10.0         # 注視点Zの上限
+        # 既定値（param_changable が未設定でも安全に動くように）
+        self._defaults = {
+            "pan_speed"       : 2.0,   # 単位/秒（前後左右移動）
+            "yaw_speed"       : 1.5,   # rad/秒（ヨー）
+            "elev_speed"      : 1.0,   # rad/秒（仰角）
+            "z_speed"         : 2.0,   # 単位/秒（カメラ位置 z）
+            "edge_ratio"      : 0.1,   # 画面端の閾値（20%）
+            "z_limit_min"     : -10.0,
+            "z_limit_max"     :  10.0,
+        }
+        # 実効パラメータ
+        self.pan_speed   = self._defaults["pan_speed"]
+        self.yaw_speed   = self._defaults["yaw_speed"]
+        self.elev_speed  = self._defaults["elev_speed"]
+        self.z_speed     = self._defaults["z_speed"]
+        self.edge_ratio  = self._defaults["edge_ratio"]
+        self.z_limit_min = self._defaults["z_limit_min"]
+        self.z_limit_max = self._defaults["z_limit_max"]
 
-        # エッジパン設定（右/左20%で自動連続パン）
-        self.edge_ratio = 0.2            # 画面幅の20%をエッジとする
-        self.edge_pan_dir = 0            # -1: 左へ、0: 停止、1: 右へ
-        self.edge_pan_timer = QTimer(self.w)
-        self.edge_pan_timer.setInterval(16)  # 約60FPS
-        self.edge_pan_timer.timeout.connect(self._edge_pan_tick)
+        # 画面端ジェスチャ用
+        self.edge_dir_x = 0  # -1: 左端, 0: なし, 1: 右端
+        self.edge_dir_y = 0  # -1: 上端, 0: なし, 1: 下端
+        self.edge_timer = QTimer(self.w)
+        self.edge_timer.setInterval(16)   # 約60FPS
+        self.edge_timer.timeout.connect(self._edge_tick)
 
-    # ----------------- 公開: GLWidget から委譲されるイベント -----------------
+        # 初期パラメータ読み込み
+        self.refresh_params()
+
+    # ----------------- パラメータ更新 -----------------
+    def refresh_params(self) -> None:
+        """param_changable から event パラメータを再読込。"""
+        try:
+            from tools import param_changable
+            ev = param_changable.get("event", {})
+            self.pan_speed   = float(ev.get("pan_speed"  , self._defaults["pan_speed"]))
+            self.yaw_speed   = float(ev.get("yaw_speed"  , self._defaults["yaw_speed"]))
+            self.elev_speed  = float(ev.get("elev_speed" , self._defaults["elev_speed"]))
+            self.z_speed     = float(ev.get("z_speed"    , self._defaults["z_speed"]))
+            self.edge_ratio  = float(ev.get("edge_ratio" , self._defaults["edge_ratio"]))
+            self.z_limit_min = float(ev.get("z_limit_min", self._defaults["z_limit_min"]))
+            self.z_limit_max = float(ev.get("z_limit_max", self._defaults["z_limit_max"]))
+        except Exception:
+            # tools / param が未ロードでも安全に続行
+            self.pan_speed   = self._defaults["pan_speed"]
+            self.yaw_speed   = self._defaults["yaw_speed"]
+            self.elev_speed  = self._defaults["elev_speed"]
+            self.z_speed     = self._defaults["z_speed"]
+            self.edge_ratio  = self._defaults["edge_ratio"]
+            self.z_limit_min = self._defaults["z_limit_min"]
+            self.z_limit_max = self._defaults["z_limit_max"]
+
+    # ----------------- GLWidget からの委譲イベント -----------------
     def handle_key_press(self, event: QKeyEvent) -> None:
-        # スペース: 一時停止/再開（GLWidgetの状態を直接更新）
+        # PageUp/Down は Ctrl の有無に関係なく優先して処理
+        if event.key() in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
+            self._move_camera_z(+1 if event.key() == Qt.Key.Key_PageUp else -1)
+            self.w.update()
+            return
+
         if event.key() == Qt.Key.Key_Space:
             self._toggle_pause()
             return
@@ -49,38 +101,52 @@ class EventHandler:
 
     def handle_mouse_move(self, event: QMouseEvent) -> None:
         x = float(event.position().x())
+        y = float(event.position().y())
         w = float(self.w.width())
+        h = float(self.w.height())
 
         press_ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
 
-        # Ctrl が押されていない場合はエッジパン制御（左右20%）
         if not press_ctrl:
-            if x >= (1.0 - self.edge_ratio) * w:
-                self._set_edge_pan_dir(1)   # 右へ（Ctrl+→ と同じ）
-            elif x <= self.edge_ratio * w:
-                self._set_edge_pan_dir(-1)  # 左へ（Ctrl+← と同じ）
-            else:
-                self._set_edge_pan_dir(0)   # 中央域は停止
+            # スクリーン端 → ヨー/仰角（自動連続）
+            left_edge   = x <= self.edge_ratio * w
+            right_edge  = x >= (1.0 - self.edge_ratio) * w
+            top_edge    = y <= self.edge_ratio * h
+            bottom_edge = y >= (1.0 - self.edge_ratio) * h
 
-            # レイ表示はCtrl時のみ
-            if self.w._ray_show:
+            new_dir_x = (-1 if left_edge else (1 if right_edge else 0))
+            new_dir_y = (-1 if top_edge else (1 if bottom_edge else 0))
+
+            if (new_dir_x != self.edge_dir_x) or (new_dir_y != self.edge_dir_y):
+                self.edge_dir_x, self.edge_dir_y = new_dir_x, new_dir_y
+                if self.edge_dir_x == 0 and self.edge_dir_y == 0:
+                    self.edge_timer.stop()
+                else:
+                    if not self.edge_timer.isActive():
+                        self.edge_timer.start()
+
+            # レイ可視化は Ctrl 時のみ
+            if getattr(self.w, "_ray_show", False):
                 self.w._ray_show = False
             return
 
-        # Ctrl 押下中: レイの更新・可視化
-        self._set_edge_pan_dir(0)  # エッジパンは停止
-        ro, rd = self.w._make_ray(x, float(event.position().y()))
-        P = self.w._ray_hit_plane(ro, rd) if hasattr(self.w, "_ray_hit_plane") else None
+        # Ctrl 押下中: レイの更新・可視化（従来通り）
+        self.edge_dir_x = self.edge_dir_y = 0
+        self.edge_timer.stop()
 
-        # 既存のレイ可視化ロジック（GLWidget版に合わせて処理）
-        from graphic_tools import _ray_hit_plane
-        P = _ray_hit_plane(ro, rd, plane_point=self.w.plane_point, plane_normal=self.w.plane_normal)
+        ro, rd = self.w._make_ray(x, y)
+        try:
+            from graphic_tools import _ray_hit_plane
+            P = _ray_hit_plane(ro, rd, plane_point=self.w.plane_point, plane_normal=self.w.plane_normal)
+        except Exception:
+            P = None
+
         if P is None:
-            if self.w._ray_show:
+            if getattr(self.w, "_ray_show", False):
                 self.w._ray_show = False
         else:
             self.w._ray_p0, self.w._ray_p1 = P, P + self.w.plane_normal * 0.5
-            if not self.w._ray_show:
+            if not getattr(self.w, "_ray_show", False):
                 self.w._ray_show = True
 
         self.w.update()
@@ -90,24 +156,25 @@ class EventHandler:
         if not press_ctrl:
             return
 
-        # 以降は Ctrl 押下時のみ（既存GLWidgetのロジックを移植）
         x, y = float(event.position().x()), float(event.position().y())
         ro, rd = self.w._make_ray(x, y)
 
         if event.button() == Qt.MouseButton.LeftButton:
-            # 生成
-            from graphic_tools import _ray_hit_plane
-            P = _ray_hit_plane(ro, rd, plane_point=self.w.plane_point, plane_normal=self.w.plane_normal)
+            # 球生成
+            try:
+                from graphic_tools import _ray_hit_plane
+                P = _ray_hit_plane(ro, rd, plane_point=self.w.plane_point, plane_normal=self.w.plane_normal)
+            except Exception:
+                P = None
             if P is None:
                 return
 
-            # 平面外チェック（checkerboard長で制限）
-            L = float(self.w.parent().param_changable["checkerboard"]["length"]) if hasattr(self.w.parent(), "param_changable") else None
+            # 範囲チェック
             if abs(P.x - self.w.plane_point.x) > self._checker_len() or abs(P.y - self.w.plane_point.y) > self._checker_len():
                 print("hit point is too far from origin, skipping")
                 return
 
-            # 球生成（GLWidgetの実装をそのまま利用）
+            # 生成
             from create_obj import get_oneball_vertices_faces
             from object3d import Object3D
             r = float(self.w.radius)
@@ -115,14 +182,14 @@ class EventHandler:
             subdiv = 2 if r < 0.5 else 3
             vertices, tri_indices = get_oneball_vertices_faces(subdiv=subdiv, radius=r)
 
-            nickname = self.w.parent().name_input.toPlainText().strip()
+            nickname = self.w.parent().name_input.toPlainText().strip() if hasattr(self.w.parent(), "name_input") else ""
             if nickname != "":
                 name = nickname
             else:
-                num_ball = sum(1 for obj in self.w.phys.objects if "ball" in obj.name)
+                num_ball = sum(1 for obj in self.w.phys.objects if "ball" in getattr(obj, "name", ""))
                 name = f"ball{num_ball+1}"
 
-            if self.w.randomize_appended_obj_color:
+            if getattr(self.w, "randomize_appended_obj_color", False):
                 from tools import rngnp
                 color = tuple(rngnp.random(3))
             else:
@@ -143,16 +210,17 @@ class EventHandler:
             self.w.appended_object.append(ball)
 
         elif event.button() == Qt.MouseButton.RightButton:
-            # 削除（レイと最初に当たる球）
+            # 球削除（最前面）
             from graphic_tools import _ray_hit_sphere
+            import glm as _glm
             hit_idx = -1
             hit_t = float("inf")
             removed_obj = None
             for obj in self.w.phys.objects:
                 if "ball" not in getattr(obj, "name", ""):
                     continue
-                center = glm.vec3(*obj.position)
-                radius = obj.radius if getattr(obj, "radius", None) is not None else max(obj.scale.x, obj.scale.y, obj.scale.z) * 1.0
+                center = _glm.vec3(*obj.position)
+                radius = obj.radius if getattr(obj, "radius", None) is not None else max(obj.scale.x, obj.scale.y, obj.scale.z)
                 t = _ray_hit_sphere(ro, rd, center, radius)
                 if t is not None and t < hit_t:
                     hit_t = t
@@ -166,42 +234,43 @@ class EventHandler:
         self.w.update()
 
     def handle_wheel(self, event: QMouseEvent) -> None:
+        # ドリー（ズーム）。ここは OS 依存差を考慮し、角度 delta を直接利用
         angle = event.angleDelta().y()
         length = glm.length(self.w.cam_target - self.w.cam_posi)
         direc = glm.normalize(self.w.cam_target - self.w.cam_posi)
-        sensitivity = 0.1
-        delta = -sensitivity if angle < 0 else sensitivity
-        length = max(0.1, min(length - delta, 100.0))
+        step = 0.1 if angle > 0 else -0.1
+        length = max(0.1, min(length - step, 100.0))
         self.w.cam_posi = self.w.cam_target - direc * length
         self.w.update()
 
-    # ----------------- 内部: キー処理の分解 -----------------
+    # ----------------- 内部: キー処理 -----------------
     def _handle_key_noctrl(self, event: QKeyEvent) -> None:
-        # 注視ベクトルなどの準備
-        direction = self.w.cam_target - self.w.cam_posi
-
+        # 矢印（Ctrlなし）＝ 前後左右のパン（時間基準）
+        forward, left = self._forward_left_xy()
+        dt = self._dt()
+        s = self.pan_speed * dt
         if event.key() == Qt.Key.Key_Up:
-            self._change_elevation(+self.angle_step)
+            self._pan(forward * s)
         elif event.key() == Qt.Key.Key_Down:
-            self._change_elevation(-self.angle_step)
+            self._pan(-forward * s)
         elif event.key() == Qt.Key.Key_Left:
-            self._yaw_rotate(direction, +self.yaw_step)   # Z軸まわり反時計回り
+            self._pan(left * s)
         elif event.key() == Qt.Key.Key_Right:
-            self._yaw_rotate(direction, -self.yaw_step)   # Z軸まわり時計回り
+            self._pan(-left * s)
 
     def _handle_key_ctrl(self, event: QKeyEvent) -> None:
-        # 画面基準パン（Ctrl+矢印）
+        # Ctrl+矢印＝画面基準パン（維持）。時間基準でスケーリング。
         forward, left = self._forward_left_xy()
-        step_f = self.pan_step
-        step_l = self.pan_step
+        dt = self._dt()
+        s = self.pan_speed * dt
         if event.key() == Qt.Key.Key_Up:
-            self._pan(forward * step_f)
+            self._pan(forward * s)
         elif event.key() == Qt.Key.Key_Down:
-            self._pan(-forward * step_f)
+            self._pan(-forward * s)
         elif event.key() == Qt.Key.Key_Left:
-            self._pan(left * step_l)
+            self._pan(left * s)
         elif event.key() == Qt.Key.Key_Right:
-            self._pan(-left * step_l)
+            self._pan(-left * s)
 
     # ----------------- 内部: 共通ユーティリティ -----------------
     def _toggle_pause(self) -> None:
@@ -218,67 +287,72 @@ class EventHandler:
         import time
         return time.perf_counter()
 
+    def _dt(self) -> float:
+        # GLWidget 側で毎フレーム更新される dt_frame [sec]
+        try:
+            return float(getattr(self.w, "dt_frame", 1.0 / 60.0))
+        except Exception:
+            return 1.0 / 60.0
+
     def _horizontal_dist(self) -> float:
         dx = float(self.w.cam_target.x - self.w.cam_posi.x)
         dy = float(self.w.cam_target.y - self.w.cam_posi.y)
         return math.hypot(dx, dy)
 
     def _change_elevation(self, delta_angle: float) -> None:
-        # 現在の仰角から角度一定で更新 → zを再計算
+        # 仰角を delta_angle だけ変更し、target.z を再計算
         horiz = self._horizontal_dist()
         dz = float(self.w.cam_target.z - self.w.cam_posi.z)
-        elev = math.atan2(dz, horiz)
-        elev += delta_angle
+        elev = math.atan2(dz, horiz) + delta_angle
         new_z = float(self.w.cam_posi.z) + math.tan(elev) * horiz
-        # z制限（正負両方許可）
-        new_z = max(self.z_limit_min, min(new_z, self.z_limit_max))
-        self.w.cam_target.z = new_z
+        self.w.cam_target.z = max(self.z_limit_min, min(new_z, self.z_limit_max))
 
-    def _yaw_rotate(self, direction: glm.vec3, angle: float) -> None:
-        rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
-        dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
-        self.w.cam_target = self.w.cam_posi + dir_rotated
+    def _yaw_rotate(self, angle: float) -> None:
+        # カメラ位置を中心に、注視ベクトルを Z 軸回りに回転
+        direction = self.w.cam_target - self.w.cam_posi
+        rot = glm.rotate(glm.mat4(1), float(angle), glm.vec3(0, 0, 1))
+        dir_rot = glm.vec3(rot * glm.vec4(direction, 1.0))
+        self.w.cam_target = self.w.cam_posi + dir_rot
 
-    def _forward_left_xy(self) -> tuple[glm.vec3, glm.vec3]:
-        """画面前方向(forward)と左方向(left)の単位ベクトル（XY平面）。"""
+    def _forward_left_xy(self) -> Tuple[glm.vec3, glm.vec3]:
+        """画面前(forward)・左(left) の XY 平面単位ベクトル。"""
         direction = self.w.cam_target - self.w.cam_posi
         xy = glm.vec3(direction.x, direction.y, 0.0)
         if glm.length(xy) == 0:
             xy = glm.vec3(0, 1, 0)
         forward = glm.normalize(xy)
-        left = glm.vec3(-forward.y, forward.x, 0.0)  # XY平面で90度回転
+        left = glm.vec3(-forward.y, forward.x, 0.0)
         return forward, left
 
     def _pan(self, move_vec: glm.vec3) -> None:
-        """pos と target を同量だけ平行移動（パン）。"""
+        """pos と target を同量移動（パン）"""
         self.w.cam_posi += move_vec
         self.w.cam_target += move_vec
 
+    def _move_camera_z(self, sign: int) -> None:
+        """カメラ位置 z のみ移動。target は固定。"""
+        dt = self._dt()
+        dz = float(sign) * self.z_speed * dt
+        new_z = float(self.w.cam_posi.z) + dz
+        # z制限は任意（必要なら適用）
+        self.w.cam_posi.z = new_z
+
     def _checker_len(self) -> float:
-        # param_changable を直接参照できない場合は安全側の固定値を使う
         try:
             from tools import param_changable
             return float(param_changable["checkerboard"]["length"])
         except Exception:
             return 10.0
 
-    # ----------------- 内部: エッジパン -----------------
-    def _set_edge_pan_dir(self, d: int) -> None:
-        if d == self.edge_pan_dir:
+    # ----------------- 画面端ジェスチャ（ヨー/仰角） -----------------
+    def _edge_tick(self) -> None:
+        if self.edge_dir_x == 0 and self.edge_dir_y == 0:
             return
-        self.edge_pan_dir = d
-        if d == 0:
-            self.edge_pan_timer.stop()
-        else:
-            if not self.edge_pan_timer.isActive():
-                self.edge_pan_timer.start()
-
-    def _edge_pan_tick(self) -> None:
-        if self.edge_pan_dir == 0:
-            return
-        # Ctrl+←/→ と同じ処理：左は +left、右は -left
-        _, left = self._forward_left_xy()
-        step = self.pan_step
-        move = left * step if self.edge_pan_dir < 0 else -left * step
-        self._pan(move)
+        dt = self._dt()
+        # 左右端 → ヨー回転
+        if self.edge_dir_x != 0:
+            self._yaw_rotate(self.edge_dir_x * self.yaw_speed * dt)
+        # 上下端 → 仰角変更
+        if self.edge_dir_y != 0:
+            self._change_elevation(-self.edge_dir_y * self.elev_speed * dt)  # 画面上端(-1)で仰角を上げるので -sign
         self.w.update()
