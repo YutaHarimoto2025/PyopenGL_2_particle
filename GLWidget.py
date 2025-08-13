@@ -17,6 +17,8 @@ from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffepeg import MovieFFmpeg
 from simulation_buffer import SimBuffer  # 物理シミュレーションデータ
 from rendering import apply_common_rendering_settings, ObjectRenderer, create_nonobject_renderers
+from event_handler import EventHandler
+
 
 class GLWidget(QOpenGLWidget):
     """
@@ -60,6 +62,7 @@ class GLWidget(QOpenGLWidget):
         self.checker, self.ray, self.cam_target_point = create_nonobject_renderers(target_position=self.cam_target)
         
         self.setMouseTracking(True) #クリックしなくてもマウス移動イベントを受け取れる
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True) # ホバーイベントを受け取る
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus) # キーボードイベントを受け取るためにフォーカスを強制的に設定
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)
@@ -71,6 +74,8 @@ class GLWidget(QOpenGLWidget):
         self.simbuff.start_stepping()  # シミュレーションスレッド開始
         self._status_callback() # 初期状態のステータスを表示
         
+        self.handler = EventHandler(self)
+
         self.start_time = time.perf_counter()  # 描画開始時刻
         self.previous_time = self.start_time
         self.is_paused: bool = False  # 一時停止フラグ
@@ -163,194 +168,26 @@ class GLWidget(QOpenGLWidget):
         self.frameCount += 1
         self.previous_time = current_time
         # self.update() #垂直同期切ったままこれ使うとfps500くらいになるので注意
+    
+    # --- イベントハンドラ ---   
+    def keyPressEvent(self, event):
+        self.handler.handle_key_press(event)
+
+    def mouseMoveEvent(self, event):
+        self.handler.handle_mouse_move(event)
+
+    def mousePressEvent(self, event):
+        self.handler.handle_mouse_press(event)
+
+    def wheelEvent(self, event):
+        self.handler.handle_wheel(event)
         
-    # ‑‑‑-------- Interaction ------------
-    def keyPressEvent(self, event: QKeyEvent) -> None:
-        if event.key() == Qt.Key.Key_Space: #スペースキー
-            self.is_paused = not self.is_paused
-            if self.is_paused: #止まり始めた時間を記録
-                self._status_callback(text = "一時停止")
-                self.pause_start_time = time.perf_counter()
-            else:
-                # 停止してた時間を足す
-                if self.pause_start_time is not None:
-                    self.total_paused_time += time.perf_counter() - self.pause_start_time
-                    self.pause_start_time = None
-                    self._status_callback(text = "再開")
-                    self.update()
-            return
-        
-        mods = event.modifiers()
-        press_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
-        direction = self.cam_target - self.cam_posi  # 注視ベクトル
-        if not press_ctrl:
-            sensitivity = 0.03  # 移動・回転の感度
-            horizontal_dist = np.sqrt((self.cam_target.x - self.cam_posi.x) ** 2 + (self.cam_target.y - self.cam_posi.y) ** 2)
-            dz = self.cam_target.z - self.cam_posi.z
-            elevation_angle = np.arctan2(dz, horizontal_dist)  # 水平面上の角度
-            
-            if event.key() == Qt.Key.Key_Up:
-                elevation_angle += sensitivity
-                self.cam_target.z = self.cam_posi.z + horizontal_dist * np.tan(elevation_angle)
-                self.cam_target.z = max(0.0, min(self.cam_target.z, 10.0)) # z座標limit
+    # 追加：ウィンドウ外に出た瞬間に回転停止
+    def leaveEvent(self, event):
+        # EventHandler 側のエッジ回転を止める
+        self.handler._stop_edge_rotation()
+        event.accept()
 
-            elif event.key() == Qt.Key.Key_Down:
-                elevation_angle -= sensitivity
-                self.cam_target.z = self.cam_posi.z + horizontal_dist * np.tan(elevation_angle)
-                self.cam_target.z = max(0.0, min(self.cam_target.z, 10.0)) # z座標limit
-
-            elif event.key() == Qt.Key.Key_Left:
-                # （Z軸周りの反時計回り）
-                angle = sensitivity
-                rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
-                dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
-                self.cam_target = self.cam_posi + dir_rotated
-
-            elif event.key() == Qt.Key.Key_Right:
-                # （Z軸周りの時計回り）
-                angle = -sensitivity
-                rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
-                dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
-                self.cam_target = self.cam_posi + dir_rotated
-        else:
-            # Ctrlキー押下中: カメラ位置と注視点をともに平行移動
-            xy_direction = glm.normalize(glm.vec3(direction.x, direction.y, 0))
-            sensitivity = 0.1
-            forward_direction =  xy_direction * sensitivity
-            left_direction = glm.vec3(-xy_direction.y, xy_direction.x, 0) * sensitivity
-            if event.key() == Qt.Key.Key_Up:
-                self.cam_posi += forward_direction
-                self.cam_target += forward_direction
-            elif event.key() == Qt.Key.Key_Down:
-                self.cam_posi -= forward_direction
-                self.cam_target -= forward_direction
-            elif event.key() == Qt.Key.Key_Left:
-                self.cam_posi += left_direction
-                self.cam_target += left_direction
-            elif event.key() == Qt.Key.Key_Right:   
-                self.cam_posi -= left_direction
-                self.cam_target -= left_direction
-        
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        mods = event.modifiers()
-        press_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
-        if not press_ctrl:
-            if self._ray_show:
-                self._ray_show = False
-            return
-        # Ctrl 押下中：レイを更新
-        x, y = float(event.position().x()), float(event.position().y())
-        ro, rd = self._make_ray(x, y)
-        P = _ray_hit_plane(ro, rd, plane_point=self.plane_point, plane_normal=self.plane_normal)
-        
-        if P is None:
-            if self._ray_show:
-                self._ray_show = False
-            return
-        else:
-            self._ray_p0, self._ray_p1 = P, P+ self.plane_normal * 0.5
-            if not self._ray_show:
-                self._ray_show = True
-        
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        try:
-            mods = event.modifiers()
-            press_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
-            if not press_ctrl:
-                return
-            
-            #以降はctrlキー押下時の処理
-            x, y = float(event.position().x()), float(event.position().y()) #マウスのqt座標
-            ro, rd = self._make_ray(x, y)
-            
-            if event.button() == Qt.MouseButton.LeftButton: #左クリック
-                # === 生成 ===
-                P = _ray_hit_plane(ro, rd, plane_point=self.plane_point, plane_normal=self.plane_normal)  # checkerboard面
-                if P is None:
-                    return
-                
-                # if glm.length(P - self.plane_point) > param_changable["checkerboard"]["length"]:
-                if abs(P.x - self.plane_point.x) > param_changable["checkerboard"]["length"] or abs(P.y - self.plane_point.y) > param_changable["checkerboard"]["length"]:
-                    # planeがz=0の場合だけでちゃんと機能する
-                    print("hit point is too far from origin, skipping")
-                    return
-                # ----- Object3D ballを生成 -----
-                r = float(self.radius)  # スライダーで更新される半径
-                center = P+ self.plane_normal * r  # 平面上の点から半径分だけ上にずらす
-                subdiv = 2 if r < 0.5 else 3
-                vertices, tri_indices = get_oneball_vertices_faces(subdiv=subdiv, radius=r)
-
-                # 名前を決める
-                nickname = self.parent().name_input.toPlainText().strip()
-                if nickname != "":
-                    name= nickname
-                else:
-                    num_ball = sum(1 for obj in self.simbuff.objects if "ball" in obj.name) + len(self.appended_object)
-                    name = f"ball{num_ball+1}"
-                # 色を決める
-                if self.randomize_appended_obj_color:
-                    color = tuple(rngnp.random(3))
-                else:
-                    c = self.parent()._picked_color
-                    color = (c.redF(), c.greenF(), c.blueF())  # float 0~1に変換
-                
-                ball = Object3D(
-                    vertices=vertices,
-                    tri_indices=tri_indices,
-                    color=color,
-                    posi=(center.x, center.y, center.z),
-                    radius=r,
-                    is_move=True,
-                    name=name,
-                )
-                self.makeCurrent()
-                ball.create_gpuBuffer()  # GPUバッファを生成
-                # 次のpaintGLで追加するリストへ登録
-                self.appended_object.append(ball)
-                
-            elif event.button() == Qt.MouseButton.RightButton: #右クリック
-                # === 削除（レイ上で最初に当たる球） ===
-                hit_idx = -1
-                hit_t = float("inf")
-                removed_obj = None
-
-                for obj in self.simbuff.objects:
-                    if "ball" not in getattr(obj, "name", ""):# 球のみが削除対象
-                        continue
-                    center = glm.vec3(*obj.position)
-                    
-                    if obj.radius is None: #ballには必ずradius属性があるが一応
-                        radius = max(obj.scale.x, obj.scale.y, obj.scale.z) * 1.0
-                    else:
-                        radius = obj.radius
-                        
-                    t = _ray_hit_sphere(ro, rd, center, radius)
-                    #tが最小のものを選ぶ
-                    if t is not None and t < hit_t:
-                        hit_t = t
-                        hit_idx = obj.obj_id
-                        removed_obj = obj
-                if hit_idx >= 0:
-                    self.makeCurrent()
-                    removed_obj.destroy_gpuBuffer()
-                    self.removed_object_idx.append(hit_idx)
-
-        finally:
-            self.update()
-            
-    def wheelEvent(self, event: QMouseEvent):
-        angle = event.angleDelta().y()
-        length = glm.length(self.cam_target - self.cam_posi) #  カメラと注視点の距離
-        direc = glm.normalize(self.cam_target - self.cam_posi)  # 注視ベクトル
-        # スクロールの感度（1段階で ±0.1 変化）
-        sensitivity = 0.1 #大きいほどちょっとの操作でめちゃズームする
-        delta = -sensitivity if angle < 0 else sensitivity
-        length -= delta
-
-        # 最小・最大ズーム制限
-        length = max(0.1, min(length, 100.0))
-
-        self.cam_posi = self.cam_target - direc * length
     # ‑‑‑-------- その他 ------------
     def _make_ray(self, x: float, y: float):
         """スクリーン座標(x,y)→ワールド空間のレイ(origin, dir)"""

@@ -10,6 +10,15 @@
     "enable": true,
     "length": 5.0
   },
+  "event": {
+    "pan_speed": 10.0,
+    "yaw_speed": 2.0,
+    "elev_speed": 1.0,
+    "z_camposi_speed": 2.0,
+    "edge_ratio": 0.1,
+    "z_limit_min": 0.0,
+    "z_limit_max": 20.0
+  },
   "fov": 60.0,
   "fps": 20,
   "sunrise": false
