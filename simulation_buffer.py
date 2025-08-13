@@ -16,7 +16,7 @@ class SimBuffer:
         self.axes = create_axes()
         self.box = create_boxes(scale=(1, 1, 1))
         self.textural_ball = one_ball(color=(1.0,1.0,1.0), texture_path=param_changable["ball_texture"])
-        self.balls = create_balls(num=100, radius=0.1)
+        self.balls = create_balls(num=10, radius=0.1)
         self.objects: List[Object3D] = self.box + self.axes + self.balls 
         # self.objects: List[Object3D] = self.one_ball + self.axes
         # ------------------------------

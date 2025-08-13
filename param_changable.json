@@ -11,6 +11,6 @@
     "length": 5.0
   },
   "fov": 60.0,
-  "fps": 100,
+  "fps": 20,
   "sunrise": false
 }
