@@ -161,7 +161,7 @@ class MainWindow(QMainWindow):
             self.gl.setParent(None)
             self.gl.deleteLater()
 
-        self.gl = GLWidget()  # 新しいGLWidgetインスタンス
+        self.gl = GLWidget(self._update_status)  # 新しいGLWidgetインスタンス
         self.setCentralWidget(self.gl)
         self.status.showMessage("初期状態をランダマイズしてリセットしました")
         self.gl.update()    
@@ -192,8 +192,8 @@ class MainWindow(QMainWindow):
         update_param_changable()  # パラメータの更新
         # 新しいfps値でタイマー再設定, 厳密に同じにはならない
         self.gl.ctrl_fps_timer.start(max(5, 1000 // int(param_changable["fps"])))
-        if hasattr(self.gl.phys, "one_ball") and self.gl.phys.one_ball:
-            self.gl.phys.one_ball[0].update_texture(param_changable["ball_texture"])
+        if hasattr(self.gl.phys, "textural_ball") and self.gl.phys.textural_ball:
+            self.gl.phys.textural_ball[0].update_texture(param_changable["ball_texture"])
 
 # --- エントリーポイント ---
 if __name__ == "__main__":

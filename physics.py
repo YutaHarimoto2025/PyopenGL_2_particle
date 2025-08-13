@@ -7,22 +7,25 @@ import glm
 import json
 
 from tools import working_dir, param, param_changable, make_datetime_file, xp, np
-from create_obj import create_boxes, create_axes, create_balls, oneball
+from create_obj import create_boxes, create_axes, create_balls, one_ball
 from object3d import Object3D
 
 class Physics:
-    def __init__(self, is_saving):
-        self.is_saving: bool = is_saving
+    def __init__(self, is_saving_jsonlog):
+        # ---- オブジェクトを生成 -----
         self.axes = create_axes()
         self.box = create_boxes(scale=(1, 1, 1))
+        self.textural_ball = one_ball(color=(1.0,1.0,1.0), texture_path=param_changable["ball_texture"])
         self.balls = create_balls(num=10, radius=0.1)
-        self.one_ball = oneball(color=(1.0, 1.0, 1.0), texture_path=param_changable["ball_texture"])  # 白い球
-        # self.objects: List[Object3D] = self.box + self.axes + self.balls
-        self.objects: List[Object3D] = self.one_ball + self.axes
+        self.objects: List[Object3D] = self.box + self.axes + self.balls 
+        # self.objects: List[Object3D] = self.one_ball + self.axes
+        # ------------------------------
         self._reindex_objects()
         for obj in self.objects:
             obj.create_gpuBuffer()
         self.objects_state_buffer: List[List[dict]] = []
+        
+        self.is_saving_jsonlog: bool = is_saving_jsonlog
         self.dt_sim = 0.01 #0.001
         self.t_sim = 0.0
         self.t_multiplier = 1.0
@@ -33,7 +36,7 @@ class Physics:
         self._onestep_thread = None
         
         #保存用jsonlファイル
-        if self.is_saving:
+        if self.is_saving_jsonlog:
             self.savefile_path = make_datetime_file(prefix="objectsLOG", domain="jsonl")
             open(self.savefile_path, "w", encoding="utf-8").close()
             
@@ -124,7 +127,7 @@ class Physics:
         self.start_stepping()   
         
         # JSONLに一行追記
-        if self.is_saving:
+        if self.is_saving_jsonlog:
             self.append_jsonl_state(interp_state, buffer_usage_ratio)
         
     def get_interp_state(self, dt_frame: float) -> Tuple[List[dict], float]:
