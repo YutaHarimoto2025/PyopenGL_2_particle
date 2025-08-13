@@ -184,34 +184,56 @@ class GLWidget(QOpenGLWidget):
                     self.pause_start_time = None
             return
         
-        sensitivity = 0.01  # 移動・回転の感度
+        mods = event.modifiers()
+        press_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
         direction = self.cam_target - self.cam_posi  # 注視ベクトル
-        radius = glm.length(direction)
+        if not press_ctrl:
+            sensitivity = 0.03  # 移動・回転の感度
+            horizontal_dist = np.sqrt((self.cam_target.x - self.cam_posi.x) ** 2 + (self.cam_target.y - self.cam_posi.y) ** 2)
+            dz = self.cam_target.z - self.cam_posi.z
+            elevation_angle = np.arctan2(dz, horizontal_dist)  # 水平面上の角度
+            
+            if event.key() == Qt.Key.Key_Up:
+                elevation_angle += sensitivity
+                self.cam_target.z = self.cam_posi.z + horizontal_dist * np.tan(elevation_angle)
+                self.cam_target.z = max(0.0, min(self.cam_target.z, 10.0)) # z座標limit
 
-        if radius < 1e-5:
-            return  # 0割防止
+            elif event.key() == Qt.Key.Key_Down:
+                elevation_angle -= sensitivity
+                self.cam_target.z = self.cam_posi.z + horizontal_dist * np.tan(elevation_angle)
+                self.cam_target.z = max(0.0, min(self.cam_target.z, 10.0)) # z座標limit
 
-        if event.key() == Qt.Key.Key_Up:
-            self.cam_target.z += sensitivity*10
-            self.cam_target.z = max(0.0, min(self.cam_target.z, 10.0)) # z座標limit
+            elif event.key() == Qt.Key.Key_Left:
+                # （Z軸周りの反時計回り）
+                angle = sensitivity
+                rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
+                dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
+                self.cam_target = self.cam_posi + dir_rotated
 
-        elif event.key() == Qt.Key.Key_Down:
-            self.cam_target.z -= sensitivity*10
-            self.cam_target.z = max(0.0, min(self.cam_target.z, 10.0))
-
-        elif event.key() == Qt.Key.Key_Left:
-            # （Z軸周りの反時計回り）
-            angle = sensitivity
-            rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
-            dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
-            self.cam_target = self.cam_posi + dir_rotated
-
-        elif event.key() == Qt.Key.Key_Right:
-            # （Z軸周りの時計回り）
-            angle = -sensitivity
-            rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
-            dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
-            self.cam_target = self.cam_posi + dir_rotated
+            elif event.key() == Qt.Key.Key_Right:
+                # （Z軸周りの時計回り）
+                angle = -sensitivity
+                rot = glm.rotate(glm.mat4(1), angle, glm.vec3(0, 0, 1))
+                dir_rotated = glm.vec3(rot * glm.vec4(direction, 1.0))
+                self.cam_target = self.cam_posi + dir_rotated
+        else:
+            # Ctrlキー押下中: カメラ位置と注視点をともに平行移動
+            xy_direction = glm.normalize(glm.vec3(direction.x, direction.y, 0))
+            sensitivity = 0.1
+            forward_direction =  xy_direction * sensitivity
+            left_direction = glm.vec3(-xy_direction.y, xy_direction.x, 0) * sensitivity
+            if event.key() == Qt.Key.Key_Up:
+                self.cam_posi += forward_direction
+                self.cam_target += forward_direction
+            elif event.key() == Qt.Key.Key_Down:
+                self.cam_posi -= forward_direction
+                self.cam_target -= forward_direction
+            elif event.key() == Qt.Key.Key_Left:
+                self.cam_posi += left_direction
+                self.cam_target += left_direction
+            elif event.key() == Qt.Key.Key_Right:   
+                self.cam_posi -= left_direction
+                self.cam_target -= left_direction
         
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         mods = event.modifiers()
@@ -297,9 +319,8 @@ class GLWidget(QOpenGLWidget):
                 removed_obj = None
 
                 for obj in self.phys.objects:
-                    if "ball" not in getattr(obj, "name", ""):
+                    if "ball" not in getattr(obj, "name", ""):# 球のみが削除対象
                         continue
-                    # 球のみが削除対象
                     center = glm.vec3(*obj.position)
                     
                     if obj.radius is None: #ballには必ずradius属性があるが一応
