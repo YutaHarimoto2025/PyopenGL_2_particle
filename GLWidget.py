@@ -163,12 +163,7 @@ class GLWidget(QOpenGLWidget):
 
         # --- フレームカウント管理・動画保存処理 ---
         if self.is_saving:
-            fbo = self.defaultFramebufferObject()
-            GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, fbo)
-            GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)   # 内部FBOのカラー添付点
-            GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)  # 安全策
             self.ffmpeg.step(self.frameCount)
-            assert GL.glCheckFramebufferStatus(GL.GL_READ_FRAMEBUFFER) == GL.GL_FRAMEBUFFER_COMPLETE
         
         self.frameCount += 1
         self.previous_time = current_time

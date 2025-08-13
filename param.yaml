@@ -4,7 +4,7 @@ case_name: ""
 movie:
   fps: 50
   total_sec: 15
-jsonl_save_interval_sec: 0.01
+jsonl_save_interval_sec: 0.1
 
 seed: 42
 
