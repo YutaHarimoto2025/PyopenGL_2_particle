@@ -26,6 +26,7 @@ def build_GLProgram(vert_filename: str, frag_filename: str) -> int:
         vert_src = load_shader(vert_filename)
         frag_src = load_shader(frag_filename)
         prog = GL.glCreateProgram()
+        shaders = []
         for src, stype in [(vert_src, GL.GL_VERTEX_SHADER), (frag_src, GL.GL_FRAGMENT_SHADER)]:
             sh = GL.glCreateShader(stype)
             GL.glShaderSource(sh, src)
@@ -35,10 +36,16 @@ def build_GLProgram(vert_filename: str, frag_filename: str) -> int:
                 info = GL.glGetShaderInfoLog(sh).decode()
                 raise RuntimeError(info)
             GL.glAttachShader(prog, sh)
+            shaders.append(sh)
         GL.glLinkProgram(prog)
         if not GL.glGetProgramiv(prog, GL.GL_LINK_STATUS):
             info = GL.glGetProgramInfoLog(prog).decode()
             raise RuntimeError(info)
+        
+        # シェーダオブジェクトの切り離しと破棄
+        for sh in shaders:
+            GL.glDetachShader(prog, sh)
+            GL.glDeleteShader(sh)
         return prog
     
 

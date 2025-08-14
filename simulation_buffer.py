@@ -18,7 +18,7 @@ class SimBuffer:
         self.box = create_boxes(scale=(1, 1, 1))
         self.textural_ball = one_ball(color=(1.0, 1.0, 1.0), texture_path=param_changable["ball_texture"])
         self.balls = create_balls(num=10, radius=0.1)
-        self.objects: List[Object3D] = self.box + self.axes + self.balls
+        self.objects: List[Object3D] = self.box + self.axes + self.balls + self.textural_ball
         # ------------------------------
 
         # 状態バッファで扱うキーを一元管理
@@ -38,7 +38,7 @@ class SimBuffer:
         self.objects_state_buffer: List[List[Dict[str, Any]]] = []
 
         self.is_saving_jsonlog: bool = is_saving_jsonlog
-        self.dt_sim = 0.005  # シミュレーション内部ステップ
+        self.dt_sim = 0.01  # シミュレーション内部ステップ
         self.t_sim = 0.0
         self.save_time_threshold = 0.0
         self.save_interval_sec = param.jsonl_save_interval_sec  # 保存間隔（秒）

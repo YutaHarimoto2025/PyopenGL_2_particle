@@ -12,6 +12,8 @@ from PyQt6.QtCore import Qt, QTimer
 
 from GLWidget import GLWidget  # 別ファイルで定義するGLWidgetをインポート
 from tools import param, param_changable, update_param_changable, create_periodic_timer, rngnp  # ハイパーパラメータを読み込む
+import os
+import signal
 
 # Ensure X11 platform for stability
 # os.environ.setdefault("QT_QPA_PLATFORM", "xcb") #GLSLベースだとこれは使っちゃだめ
@@ -197,6 +199,11 @@ class MainWindow(QMainWindow):
             self.gl.simbuff.textural_ball[0].update_texture(param_changable["ball_texture"])
         
         self.gl.handler.refresh_params()
+        
+    def closeEvent(self, event) -> None:
+        print(f"PID {os.getpid()} killed")
+        os.kill(os.getpid(), signal.SIGKILL)
+        event.accept()
             
         
 

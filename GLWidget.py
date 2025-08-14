@@ -188,7 +188,7 @@ class GLWidget(QOpenGLWidget):
         # EventHandler 側のエッジ回転を止める
         self.handler._stop_edge_rotation()
         event.accept()
-
+    
     # ‑‑‑-------- その他 ------------
     def _make_ray(self, x: float, y: float):
         """スクリーン座標(x,y)→ワールド空間のレイ(origin, dir)"""
