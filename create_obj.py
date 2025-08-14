@@ -146,8 +146,8 @@ def create_boxes(scale=(1, 1, 1)) -> list:
             TRI += [o+0, o+1, o+2,  o+0, o+2, o+3]
         elif f == 4:    # -Y face: 外から見て反時計回り
             TRI += [o+0, o+1, o+2,  o+0, o+2, o+3]
-        elif f == 5:    # +Y face: 外から見て時計回り → 反時計回りに修正
-            TRI += [o+0, o+3, o+2,  o+0, o+2, o+1]
+        # elif f == 5:    # +Y face: 外から見て時計回り → 反時計回りに修正
+        #     TRI += [o+0, o+3, o+2,  o+0, o+2, o+1]
 
     TRI = npInt(TRI)
 

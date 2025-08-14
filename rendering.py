@@ -16,9 +16,8 @@ def get_uniform_loc(target, prog, name_set:set, prefix=""):
 
 def apply_common_rendering_settings():
     GL.glEnable(GL.GL_DEPTH_TEST); GL.glDepthFunc(GL.GL_LESS); GL.glDepthMask(GL.GL_TRUE) 
-    GL.glEnable(GL.GL_DEPTH_TEST)
     GL.glEnable(GL.GL_FRAMEBUFFER_SRGB)
-    GL.glEnable(GL.GL_CULL_FACE); #スクリーン上で反時計回りが表面，ウラ面を描画しない
+    GL.glDisable(GL.GL_CULL_FACE); #スクリーン上で反時計回りが表面，ウラ面を描画しない
     GL.glCullFace(GL.GL_BACK) # #ウラ面を描画しない　＃GL_CULL_FACEのデフォ
     GL.glFrontFace(GL.GL_CCW) # 反時計回りが表面 #GL_CULL_FACEのデフォ
     GL.glDisable(GL.GL_BLEND)

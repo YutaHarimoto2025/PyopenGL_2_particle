@@ -225,7 +225,7 @@ class EventHandler:
         angle = event.angleDelta().y()
         length = glm.length(self.w.cam_target - self.w.cam_posi)
         direc = glm.normalize(self.w.cam_target - self.w.cam_posi)
-        step = 0.1 if angle > 0 else -0.1
+        step = 0.02*length if angle > 0 else -0.02*length
         length = max(0.1, min(length - step, 100.0))
         self.w.cam_posi = self.w.cam_target - direc * length
         self.w.update()

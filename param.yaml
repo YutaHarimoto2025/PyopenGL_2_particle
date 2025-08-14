@@ -1,4 +1,4 @@
-is_saving: true #動画やログを保存するかどうか
+is_saving: false #動画やログを保存するかどうか
 save_dir: "result_test" #result_local
 case_name: ""
 movie:
