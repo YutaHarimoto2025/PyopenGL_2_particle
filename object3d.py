@@ -114,19 +114,44 @@ class Object3D:
             self.geo = None
             self.gpu_ready = False
         
-    def update_texture(self, texture_path: str|None) -> None:
-        if texture_path is not None:
-            texture_id_temp = load_texture(texture_path)  # GLコンテキスト有効時に呼ぶ
-            if texture_id_temp is not None:  # None や 0 でなければ成功
-                self.texture_id = texture_id_temp
-                self.use_tex = bool(self.texture_id) #ロード成功したらTrue
-            else:
-                print(f"Failed to load texture from {texture_path}")
-                if not hasattr(self, "texture_id"): #初回だけ
-                    self.texture_id = None
-                    self.use_tex = False
-        else:
+    def update_texture(self, texture_path: str | None) -> None:
+        """
+        テクスチャ更新
+        - 同じパスなら再ロードしない
+        - 新しいパスなら古いテクスチャを削除してからロード
+        - Noneならテクスチャを無効化
+        """
+        current_id = getattr(self, "texture_id", None)
+        current_path = getattr(self, "_texture_path", None)
+
+        # 無効化の場合
+        if texture_path is None:
+            if current_id:
+                GL.glDeleteTextures(1, [current_id])
             self.texture_id = None
+            self._texture_path = None
+            self.use_tex = False
+            return
+
+        # 同じパスなら何もしない
+        if current_path == texture_path and current_id:
+            self.use_tex = True
+            return
+
+        # 古いテクスチャを削除
+        if current_id:
+            GL.glDeleteTextures(1, [current_id])
+
+        # 新規ロード
+        new_id = load_texture(texture_path)  # GLコンテキスト有効時に呼ぶ
+        if new_id:
+            self.texture_id = new_id
+            self._texture_path = texture_path
+            self.use_tex = True
+        else:
+            print(f"Failed to load texture from {texture_path}")
+            self.texture_id = None
+            self._texture_path = None
             self.use_tex = False
 
     def update_posi_rot(self, dt: float) -> None:

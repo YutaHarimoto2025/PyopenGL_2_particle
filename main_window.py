@@ -201,7 +201,7 @@ class MainWindow(QMainWindow):
         self.gl.handler.refresh_params()
         
     def closeEvent(self, event) -> None:
-        print(f"PID {os.getpid()} killed")
+        print(f"PID {os.getpid()} killed") #kill -9
         os.kill(os.getpid(), signal.SIGKILL)
         event.accept()
             
