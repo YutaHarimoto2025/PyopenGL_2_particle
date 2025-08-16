@@ -299,7 +299,7 @@ class MeshColliderStub:
 from __future__ import annotations
 from typing import Literal, Optional
 from tools import xp
-from physics.state import ParticleState
+from physics.GPT import ParticleState
 from physics.integrators import RK4, SemiImplicitEuler
 from physics.forces import ForceModel, ForceConfig
 from physics.collisions import SphereColliderCPU, CollisionConfig
@@ -403,7 +403,7 @@ def _unit_scale_array(N: int):
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     from tools import xp
-    from physics.state import ParticleState
+    from physics.GPT import ParticleState
     from physics.simulator import PhysicsSimulator
     from physics.forces import ForceConfig
     from physics.collisions import CollisionConfig
