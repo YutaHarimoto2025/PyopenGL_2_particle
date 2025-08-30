@@ -39,7 +39,7 @@ class ObjectRenderer:
             # 既存
             "uModel", "uView", "uProj", "uViewPos",
             "uLightPos", "uColor", "uShadingMode",
-            "uRimStrength", "uGamma", "uNormalMatrix",
+            "uRimStrength", "uGamma",
             # 追加（マテリアル/ライティング）
             "uDiffuse", "uLightColor", "uAmbient", "uSpecularStr", "uShininess",
             # 追加（UV/テクスチャ）
@@ -77,8 +77,8 @@ class ObjectRenderer:
         model = obj.model_mat
         rgba = obj.color
         GL.glUniformMatrix4fv(self.uModel, 1, False, glm.value_ptr(model)) # uModel
-        nmat = glm.mat3(glm.transpose(glm.inverse(glm.mat3(model)))) 
-        GL.glUniformMatrix3fv(self.uNormalMatrix, 1, False, glm.value_ptr(nmat)) # uNormalMatrix非一様スケール対応
+        # nmat = glm.mat3(glm.transpose(glm.inverse(glm.mat3(model)))) #GLSLで計算
+        # GL.glUniformMatrix3fv(self.uNormalMatrix, 1, False, glm.value_ptr(nmat)) # uNormalMatrix非一様スケール対応
         GL.glUniform4f(self.uColor, *rgba) # uColor
         
         # テクスチャ
@@ -114,6 +114,80 @@ class ObjectRenderer:
                 obj.geo.draw_elements(GL.GL_LINES, "lines")
             if obj.tri_indices.size > 0:
                 obj.geo.draw_elements(GL.GL_TRIANGLES, "tris")
+                
+class SimpleBallRenderer: #立体的な球描画の最低限セット インスタンシングされてない
+    def __init__(self):
+        self.prog = build_GLProgram(vert_filename="simple_sphere.vert", frag_filename="simple_sphere.frag")
+        # ---- cache uniform locations
+        uniform_name_set = {
+            "uModel", "uView", "uProj",
+            "uViewPos", "uColor", "uLightPos",
+        }
+        get_uniform_loc(self, prog=self.prog, name_set=uniform_name_set)  
+    
+    def set_common(self, cam_posi, view, proj):
+        GL.glUseProgram(self.prog)
+        GL.glUniformMatrix4fv(self.uView, 1, False, glm.value_ptr(view))
+        GL.glUniformMatrix4fv(self.uProj, 1, False, glm.value_ptr(proj))
+        GL.glUniform3f(self.uViewPos, *cam_posi)
+        GL.glUniform3f(self.uLightPos, *(5.0, 5.0, 5.0))
+    
+    def set_each(self, obj):
+        GL.glUseProgram(self.prog)
+        model = obj.model_mat
+        rgba = obj.color
+        GL.glUniformMatrix4fv(self.uModel, 1, False, glm.value_ptr(model)) # uModel
+        GL.glUniform4f(self.uColor, *rgba)
+        
+    def draw(self, obj) -> None:
+        obj.geo.draw_elements(GL.GL_TRIANGLES, "tris")
+        
+class InstancedBallRendererColor:
+    def __init__(self, max_instances=100000):
+        self.prog = build_GLProgram("sphere_instanced_color.vert", "sphere_simple.frag")
+
+        uniform_name_set = {"uView", "uProj", "uViewPos", "uLightPos"}
+        get_uniform_loc(self, prog=self.prog, name_set=uniform_name_set)
+
+        self.geo = SphereGeometry()
+
+        # --- モデル行列インスタンスバッファ
+        self.instance_vbo = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.instance_vbo)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, max_instances * 64, None, GL.GL_STREAM_DRAW)
+
+        stride = 64
+        for i in range(4):
+            GL.glEnableVertexAttribArray(3 + i)
+            GL.glVertexAttribPointer(3 + i, 4, GL.GL_FLOAT, False, stride, ctypes.c_void_p(i*16))
+            GL.glVertexAttribDivisor(3 + i, 1)
+
+        # --- カラーインスタンスバッファ
+        self.color_vbo = GL.glGenBuffers(1)
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.color_vbo)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, max_instances * 12, None, GL.GL_STREAM_DRAW)  # vec3
+        GL.glEnableVertexAttribArray(7)
+        GL.glVertexAttribPointer(7, 3, GL.GL_FLOAT, False, 0, ctypes.c_void_p(0))
+        GL.glVertexAttribDivisor(7, 1)
+
+    def set_common(self, cam_posi, view, proj):
+        GL.glUseProgram(self.prog)
+        GL.glUniformMatrix4fv(self.uView, 1, False, glm.value_ptr(view))
+        GL.glUniformMatrix4fv(self.uProj, 1, False, glm.value_ptr(proj))
+        GL.glUniform3f(self.uViewPos, *cam_posi)
+        GL.glUniform3f(self.uLightPos, *(5.0,5.0,5.0))
+
+    def update_instances(self, model_mats, colors):
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.instance_vbo)
+        GL.glBufferSubData(GL.GL_ARRAY_BUFFER, 0, model_mats.nbytes, model_mats)
+
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.color_vbo)
+        GL.glBufferSubData(GL.GL_ARRAY_BUFFER, 0, colors.nbytes, colors)
+
+    def draw(self, count):
+        self.geo.bind()
+        GL.glDrawElementsInstanced(GL.GL_TRIANGLES, self.geo.index_count, GL.GL_UNSIGNED_INT, None, count)
+
                 
 class NonObjectRenderer:
     """

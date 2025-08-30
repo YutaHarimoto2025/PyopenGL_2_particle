@@ -38,6 +38,12 @@ except ImportError:
     xp = np
     USE_CUDA = False
     print("⚠️ CuPy not found → using NumPy only")
+    
+def to_numpy(a) -> np.ndarray:
+    """CuPy/NumPy どちらでも受け取り、必ず np.float32 C連続に正規化して返す。"""
+    if USE_CUDA and isinstance(a, cp.ndarray):
+        a = a.get()  # GPU→CPUコピー
+    return np.asarray(a, dtype=np.float32, order='C')
 
 def _recursive_cast(x, dtype_func):
     """
