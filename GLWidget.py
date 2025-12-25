@@ -53,6 +53,10 @@ class GLWidget(QOpenGLWidget):
         self.cam_target = glm.vec3(0, 0, 0)  # 注視点
         
     def initializeGL(self) -> None:
+        # 1. コンテキストをこのスレッドで有効化
+        # self.makeCurrent()
+        # 2. PyOpenGLが現在のコンテキストを正しく認識しているか確認（デバッグ用）
+        # print(f"Using OpenGL Version: {GL.glGetString(GL.GL_VERSION)}")
         """
         OpenGL初期化処理。シェーダコンパイル、オブジェクト生成、背景色設定、動画保存準備など。
         """

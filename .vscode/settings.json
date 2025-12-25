@@ -71,6 +71,16 @@
         "checker_color1",
         "checker_color2"
     ],
+    "[python]": {
+        // 80文字のところに罫線を表示させる。
+        // pep8 というコード規約では、1行あたり80文字を超えるべきではないとされているため。
+        "editor.rulers": [
+            100
+        ],
+        // Ruff をフォーマッタとして使用する。
+        // Ruff によるフォーマットは Black と互換性があるため、Black の代わりに使える。
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
     // "python.poetryPath": "/home/yuta-harimoto/.home_env/bin/python",
     // "python.analysis.indexing": true,
     // "python.analysis.autoImportCompletions": true,

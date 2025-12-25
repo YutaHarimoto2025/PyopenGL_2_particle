@@ -81,7 +81,7 @@ def npInt(x):
 
 
 # --- 設定ファイル読込 ---
-git_repo = git.Repo('.', search_parent_directories=True)
+git_repo = git.Repo(Path(__file__).resolve(), search_parent_directories=True)
 working_dir = Path(git_repo.working_tree_dir)
 os.chdir(working_dir) 
 sys.path.insert(0, str(working_dir))
@@ -119,4 +119,3 @@ __all__ = [
     "update_param_changable",
     "xpFloat", "xpInt", "npFloat", "npInt", "working_dir"
 ]
-

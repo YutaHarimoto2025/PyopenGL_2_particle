@@ -1,6 +1,13 @@
 # main_window.py
 
-import os,sys, time
+import os,sys
+import git
+from pathlib import Path
+from dotenv import load_dotenv
+from tools import param, param_changable, update_param_changable, create_periodic_timer, rngnp, working_dir
+env_path = working_dir / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path, override=True)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar,
     QLabel, QSlider, QDockWidget, QListWidget, QTextEdit, 
@@ -11,15 +18,8 @@ from PyQt6.QtGui import QAction, QSurfaceFormat, QColor
 from PyQt6.QtCore import Qt, QTimer
 
 from GLWidget import GLWidget  # 別ファイルで定義するGLWidgetをインポート
-from tools import param, param_changable, update_param_changable, create_periodic_timer, rngnp  # ハイパーパラメータを読み込む
-import os
+import time
 import signal
-
-# Ensure X11 platform for stability
-# os.environ.setdefault("QT_QPA_PLATFORM", "xcb") #GLSLベースだとこれは使っちゃだめ
-# os.environ.setdefault("QT_OPENGL", "desktop")
-os.environ.setdefault("XDG_SESSION_TYPE", "x11")
-os.environ.setdefault("GDK_BACKEND", "x11")
 
 class MainWindow(QMainWindow):
     """
@@ -75,7 +75,9 @@ class MainWindow(QMainWindow):
 
         # 左上ドック: オブジェクト一覧リスト
         self.list_widget = QListWidget()
-        self.left1_dock = self._create_dock("オブジェクト名: 座標", self.list_widget, Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.left1_dock = self._create_dock("オブジェクト名: 座標", 
+                                            self.list_widget, 
+                                            Qt.DockWidgetArea.LeftDockWidgetArea)
         self.left1_dock.setFixedWidth(250)  # 横幅固定
 
         # 左下ドック: 名前入力欄
@@ -116,7 +118,9 @@ class MainWindow(QMainWindow):
         layout.addLayout(color_layout)
 
         # 既存の _create_dock を利用
-        self.left2_dock = self._create_dock("追加オブジェクトの，名前 / 色", panel, Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.left2_dock = self._create_dock("追加オブジェクトの，名前 / 色", 
+                                            panel, 
+                                            Qt.DockWidgetArea.LeftDockWidgetArea)
 
         # ドックの縦分割
         self.splitDockWidget(self.left1_dock, self.left2_dock, Qt.Orientation.Vertical)
@@ -178,7 +182,8 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"オブジェクト数: {len(self.gl.simbuff.objects)} | {text}") 
         self.list_widget.clear()
         for i, obj in enumerate(self.gl.simbuff.objects, start=1):
-            self.list_widget.addItem(f"{obj.name}: ({obj.position.x:.2f}, {obj.position.y:.2f}, {obj.position.z:.2f})")
+            obj_script = f"{obj.name}: ({obj.position.x:.2f}, {obj.position.y:.2f}, {obj.position.z:.2f})"
+            self.list_widget.addItem(obj_script)
             
     def _toggle_labels(self, checked: bool) -> None:
         """
@@ -210,7 +215,8 @@ class MainWindow(QMainWindow):
 # --- エントリーポイント ---
 if __name__ == "__main__":
     format = QSurfaceFormat()
-    format.setVersion(3, 0) # OpenGL 3.3 Core Profile
+    format.setRenderableType(QSurfaceFormat.RenderableType.OpenGL)
+    format.setVersion(3, 3) # OpenGL 3.3 Core Profileで動いた
     format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
     format.setDepthBufferSize(24) # 深度バッファのビット数
     format.setStencilBufferSize(8)
