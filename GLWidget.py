@@ -16,7 +16,7 @@ from create_obj import create_boxes, create_axes, get_oneball_vertices_faces  # 
 from object3d import Object3D  # 3Dオブジェクト定義
 from movie_ffmpeg import MovieFFmpeg
 from simulation_buffer import SimBuffer  # 物理シミュレーションデータ
-from rendering import apply_common_rendering_settings, ObjectRenderer, create_nonobject_renderers
+from rendering import apply_common_rendering_settings, ObjectRenderer, create_nonobject_renderers, InstancedBallRendererColor
 from event_handler import EventHandler
 
 
@@ -63,10 +63,13 @@ class GLWidget(QOpenGLWidget):
         # --- シェーダプログラム読み込み・コンパイル ---
         apply_common_rendering_settings()
         self.renderer = ObjectRenderer()
+        self.instanced_renderer = InstancedBallRendererColor(max_instances=100000)
         self.checker, self.ray, self.cam_target_point = create_nonobject_renderers(target_position=self.cam_target)
         
         self.setMouseTracking(True) #クリックしなくてもマウス移動イベントを受け取れる
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True) # ホバーイベントを受け取る
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True) #
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True) #背景自動描画
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus) # キーボードイベントを受け取るためにフォーカスを強制的に設定
         # --- 動画保存用ffmpeg準備 ---
         self.is_saving = bool(param.is_saving)
@@ -136,6 +139,12 @@ class GLWidget(QOpenGLWidget):
                 self._status_callback(text = "オブジェクト削除しました")
                 self.removed_object_idx.clear()
 
+        # --- パーティクルシステムの描画 ---
+        matrices, colors = self.simbuff.particle_system.get_render_data()
+        self.instanced_renderer.update_instances(matrices, colors)
+        self.instanced_renderer.set_common(self.cam_posi, self.view, self.proj)
+        self.instanced_renderer.draw(len(matrices))
+
         # --- オブジェクトの描画 ---
         for obj in self.simbuff.objects:
             self.renderer.set_each(obj)   # uModel / uNormalMatrix / uColor             # uColor
@@ -149,7 +158,7 @@ class GLWidget(QOpenGLWidget):
 
         # --- QPainterでラベル描画 ---
         if self.show_labels:
-            painter = QPainter(self)
+            painter = QPainter(self)      
             font = QFont("Noto Sans CJK JP", 20, QFont.Weight.Normal)
             painter.setFont(font)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)

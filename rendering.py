@@ -4,7 +4,8 @@ import glm
 import ctypes
 
 from tools import param_changable, param
-from graphic_tools import load_shader, build_GLProgram, GLGeometry
+from graphic_tools import load_shader, build_GLProgram, GLGeometry, compute_normals
+from create_obj import get_oneball_vertices_faces
 
 # ---- uniform location を安全に取得（-1なら警告）
 def get_uniform_loc(target, prog, name_set:set, prefix=""):
@@ -141,10 +142,20 @@ class SimpleBallRenderer: #立体的な球描画の最低限セット インス�
         
     def draw(self, obj) -> None:
         obj.geo.draw_elements(GL.GL_TRIANGLES, "tris")
+
+class SphereGeometry(GLGeometry):
+    def __init__(self, subdiv=2, radius=1.0):
+        super().__init__()
+        verts, indices = get_oneball_vertices_faces(subdiv, radius)
+        normals = compute_normals(verts, indices)
+        
+        self.add_array(0, verts, 3)
+        self.add_array(1, normals, 3)
+        self.set_elements("tris", indices)
         
 class InstancedBallRendererColor:
     def __init__(self, max_instances=100000):
-        self.prog = build_GLProgram("sphere_instanced_color.vert", "sphere_simple.frag")
+        self.prog = build_GLProgram("simple_sphere_instanced.vert", "simple_sphere.frag")
 
         uniform_name_set = {"uView", "uProj", "uViewPos", "uLightPos"}
         get_uniform_loc(self, prog=self.prog, name_set=uniform_name_set)

@@ -9,6 +9,7 @@ import json
 from tools import working_dir, param, param_changable, make_datetime_file, xp, np
 from create_obj import create_boxes, create_axes, create_balls, one_ball
 from object3d import Object3D
+from particle_system import ParticleSystem
 
 
 class SimBuffer:
@@ -19,6 +20,9 @@ class SimBuffer:
         self.textural_ball = one_ball(color=(1.0, 1.0, 1.0), texture_path=param_changable["ball_texture"])
         self.balls = create_balls(num=10, radius=0.1)
         self.objects: List[Object3D] = self.box + self.axes + self.balls
+        
+        # Initialize Particle System for massive amount of particles
+        self.particle_system = ParticleSystem(num_particles=50000) # Adjust number as needed
         # ------------------------------
 
         # 状態バッファで扱うキーを一元管理
@@ -70,6 +74,10 @@ class SimBuffer:
         """シミュレーションを 1 ステップ進め、状態保存"""
         for obj in self.objects:
             obj.update_posi_rot(self.dt_sim)
+        
+        # Update particle system
+        self.particle_system.update(self.dt_sim)
+
         self.save_current_state()
 
     def _step_loop(self) -> None:
