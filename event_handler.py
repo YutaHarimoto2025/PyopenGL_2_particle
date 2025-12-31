@@ -6,6 +6,11 @@ from typing import Optional, Tuple
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QMouseEvent, QKeyEvent
 import glm
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING: #型ヒント用モジュールたち
+    from GLWidget import GLWidget
+
 
 class EventHandler:
     """
@@ -25,7 +30,7 @@ class EventHandler:
     - パラメータは param_changable["event"][...] を参照
     """
     def __init__(self, widget) -> None:
-        self.w = widget  # GLWidget への参照
+        self.w: "GLWidget" = widget
 
         # 管理対象キー集合
         self.param_keys = {

@@ -14,7 +14,7 @@ from tools import xp, np, create_periodic_timer, param, param_changable, working
 from graphic_tools import load_shader, compute_normals, _ray_hit_plane, _ray_hit_sphere  # シェーダ読み込み、法線計算、レイキャスト
 from create_obj import create_boxes, create_axes, get_oneball_vertices_faces  # オブジェクト生成はここに分離
 from object3d import Object3D  # 3Dオブジェクト定義
-from movie_ffepeg import MovieFFmpeg
+from movie_ffmpeg import MovieFFmpeg
 from simulation_buffer import SimBuffer  # 物理シミュレーションデータ
 from rendering import apply_common_rendering_settings, ObjectRenderer, create_nonobject_renderers
 from event_handler import EventHandler
