@@ -1,42 +1,80 @@
 {
     "workbench.colorCustomizations": {
-        "activityBar.background": "#32381f",
+        /* ===============================
+           入力領域（Editor / Terminal）
+           =============================== */
+        "editor.background": "#0c1e16",
+        "editor.foreground": "#d2efe3",
+        "editorLineNumber.foreground": "#7fa99a",
+        "editorCursor.foreground": "#66ffcc",
+        "editorWhitespace.foreground": "#1f4033",
+        "editor.selectionBackground": "#254f3e",
+        "editor.selectionHighlightBackground": "#2f6b55",
+        "panel.background": "#0b1c14",
+        "panel.border": "#2f6b55",
+        "panelTitle.activeForeground": "#e0fff0",
+        "panelTitle.inactiveForeground": "#9fbfb3",
+        "panelTitle.activeBorder": "#4caf50",
+        /* ===============================
+           サイドバー（閲覧・操作）
+           =============================== */
+        "sideBar.background": "#16382b",
+        "sideBar.foreground": "#d8f5ea",
+        "sideBar.border": "#3f8a66",
+        "sideBarTitle.foreground": "#e6fff4",
+        "sideBarSectionHeader.background": "#1f4a38",
+        "sideBarSectionHeader.foreground": "#e6fff4",
+        /* リスト要素（リッチ感向上） */
+        "list.activeSelectionBackground": "#2f6b55",
+        "list.activeSelectionForeground": "#e6fff4",
+        "list.hoverBackground": "#244d3a",
+        "list.inactiveSelectionBackground": "#1f4336",
+        /* ===============================
+           Activity Bar
+           =============================== */
+        "activityBar.background": "#2a3d2a",
         "activityBar.foreground": "#dbffe5",
+        "activityBar.border": "#4caf50",
         "activityBarBadge.background": "#4caf50",
         "activityBarBadge.foreground": "#ffffff",
-        "sideBar.background": "#122d20",
-        "sideBar.foreground": "#ccefdc",
-        "sideBarTitle.foreground": "#dbffe5",
-        "sideBarSectionHeader.background": "#2e5c46",
-        "sideBarSectionHeader.foreground": "#dbffe5",
-        "titleBar.activeBackground": "#1f4336",
-        "titleBar.activeForeground": "#e1ffef",
-        "statusBar.background": "#348363",
-        "statusBar.foreground": "#d4fce8",
-        "editor.background": "#10261b",
-        "editorLineNumber.foreground": "#9ecbb5",
-        "editorCursor.foreground": "#66ffcc",
-        "editorWhitespace.foreground": "#285644",
-        "tab.activeBackground": "#1f4330",
-        "tab.activeForeground": "#dbffe5",
-        "tab.inactiveBackground": "#153324",
-        "tab.inactiveForeground": "#a0cbb6",
-        "tab.hoverBackground": "#367857",
-        "tab.border": "#134b33",
+        /* ===============================
+           タブ・エディタグループ
+           =============================== */
+        "tab.activeBackground": "#255a44",
+        "tab.activeForeground": "#e6fff4",
+        "tab.inactiveBackground": "#1a3328",
+        "tab.inactiveForeground": "#a4cfc0",
+        "tab.hoverBackground": "#2f6b55",
+        "tab.border": "#3f8a66",
         "tab.activeBorder": "#4caf50",
-        "panel.background": "#10261b",
-        "panel.border": "#2e5c46",
-        "panelTitle.activeForeground": "#dbffe5",
-        "panelTitle.inactiveForeground": "#a0cbb6",
-        "panelTitle.activeBorder": "#66ffcc",
-        "scrollbarSlider.background": "#3e7053",
-        "scrollbarSlider.hoverBackground": "#5b9d74",
-        "scrollbarSlider.activeBackground": "#7bd3a2",
+        "tab.unfocusedBorder": "#244d3a",
+        "editorGroup.border": "#3f8a66",
+        "editorGroupHeader.tabsBorder": "#4caf50",
+        "editorGroup.focusedEmptyBorder": "#66ffcc",
+        /* ===============================
+           Title / Status
+           =============================== */
+        "titleBar.activeBackground": "#22473a",
+        "titleBar.activeForeground": "#e6fff4",
+        "statusBar.background": "#2f6b55",
+        "statusBar.foreground": "#e0fff0",
+        "statusBar.border": "#4caf50",
+        /* ===============================
+           スクロール・ミニマップ
+           =============================== */
+        "scrollbarSlider.background": "#355f4a",
+        "scrollbarSlider.hoverBackground": "#4b8065",
+        "scrollbarSlider.activeBackground": "#66a88a",
         "scrollbar.shadow": "#000000",
-        "minimap.background": "#10261b",
-        "minimapSlider.background": "#66ffcc",
-        "minimapSlider.hoverBackground": "#99ffe0",
-        "minimapSlider.activeBackground": "#b8ffec"
+        "minimap.background": "#0c1e16",
+        "minimapSlider.background": "#3f8a66",
+        "minimapSlider.hoverBackground": "#66bfa0",
+        "minimapSlider.activeBackground": "#8fdcc0",
+        /* ===============================
+           インデントガイド（弱め）
+           =============================== */
+        "editorIndentGuide.background": "#1a3a2e",
+        "editorIndentGuide.activeBackground": "#4caf50"
     },
     "python.analysis.typeCheckingMode": "off",
     "python.pythonPath": "/home/yuta-harimoto/.home_env/bin/python",
@@ -81,6 +119,7 @@
         // Ruff によるフォーマットは Black と互換性があるため、Black の代わりに使える。
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
+    "chatgpt.openOnStartup": true,
     // "python.poetryPath": "/home/yuta-harimoto/.home_env/bin/python",
     // "python.analysis.indexing": true,
     // "python.analysis.autoImportCompletions": true,
