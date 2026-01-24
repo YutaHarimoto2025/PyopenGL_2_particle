@@ -27,6 +27,8 @@ def make_datetime_file(prefix: str, domain) -> str:
 try:
     import cupy as cp
     if cp.cuda.is_available():
+        cp.random.RandomState(0)  # GPU使用可能かテスト
+        cp.random.default_rng
         xp = cp
         USE_CUDA = True
         print("✅ GPU (CuPy) initialized successfully")
@@ -39,45 +41,52 @@ except ImportError:
     USE_CUDA = False
     print("⚠️ CuPy not found → using NumPy only")
     
-def to_numpy(a) -> np.ndarray:
-    """CuPy/NumPy どちらでも受け取り、必ず np.float32 C連続に正規化して返す。"""
-    if USE_CUDA and isinstance(a, cp.ndarray):
-        a = a.get()  # GPU→CPUコピー
-    return np.asarray(a, dtype=np.float32, order='C')
 
-def _recursive_cast(x, dtype_func):
+# --- データ型変換の再帰関数 ---
+def _recursive_cast(x, dtype):
     """
-    任意のリスト・タプル・dict・ndarray・スカラーを
-    指定されたdtype_func（例: xp.float32, np.uint32）で再帰変換。
+    任意のデータ構造を指定された dtype に再帰的に変換する。
     """
+    # ndarray/cp.ndarray の場合
     if hasattr(x, "astype"):
         try:
-            return x.astype(dtype_func)
+            return x.astype(dtype)
         except Exception:
             return x
+    # 辞書の場合
     elif isinstance(x, dict):
-        return {k: _recursive_cast(v, dtype_func) for k, v in x.items()}
+        return {k: _recursive_cast(v, dtype) for k, v in x.items()}
+    # リスト・タプルの場合
     elif isinstance(x, (list, tuple)):
         typ = type(x)
-        return typ([_recursive_cast(v, dtype_func) for v in x])
+        return typ([_recursive_cast(v, dtype) for v in x])
+    # スカラー値などの場合
     else:
         try:
-            return dtype_func(x)
+            # dtype 自体がコンストラクタとして機能する（np.float32(1.0) など）
+            return dtype(x)
         except Exception:
-            return x  # 変換できないものはそのまま
+            return x
 
-# --- ラッパ関数4つを用意 ---
-def xpFloat(x):
-    return _recursive_cast(x, xp.float32)
+def to_float(x, use_xp=True, precision=32):
+    """
+    float型への変換。backend(xp/np)と精度(32/64)を選択可能。
+    """
+    lib = xp if use_xp else np
+    dtype = lib.float32 if precision == 32 else lib.float64
+    return _recursive_cast(x, dtype)
 
-def xpInt(x):
-    return _recursive_cast(x, xp.uint32)
+def to_int(x, use_xp=True, precision=32, unsigned=True):
+    """
+    int型への変換。符号あり/なし、backend(xp/np)、精度(32/64)を選択可能。
+    """
+    lib = xp if use_xp else np
+    if unsigned:
+        dtype = lib.uint32 if precision == 32 else lib.uint64
+    else:
+        dtype = lib.int32 if precision == 32 else lib.int64
+    return _recursive_cast(x, dtype)
 
-def npFloat(x):
-    return _recursive_cast(x, np.float32)
-
-def npInt(x):
-    return _recursive_cast(x, np.uint32)
 
 
 # --- 設定ファイル読込 ---
@@ -111,11 +120,11 @@ def update_param_changable():
 
 # --- 乱数生成統一 ---
 seed = param.get("seed", 42)
-rngxp = xp.random.RandomState(seed)
 rngnp = np.random.default_rng(seed)
+rngxp = xp.random.default_rng(seed)
 
 __all__ = [
     "param", "param_changable", "USE_CUDA", "xp", "np", "rngnp", "rngxp",
     "update_param_changable",
-    "xpFloat", "xpInt", "npFloat", "npInt", "working_dir"
+    "to_float", "to_int", "working_dir"
 ]

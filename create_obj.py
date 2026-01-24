@@ -3,7 +3,7 @@ import glm
 from typing import Optional, Tuple, Any
 import math
 
-from tools import xp, np, xpFloat, xpInt, npFloat, npInt, rngnp, param_changable, param
+from tools import xp, np, to_float, to_int, rngnp, param_changable, param
 from graphic_tools import compute_normals  
 from object3d import Object3D
 
@@ -48,8 +48,8 @@ def get_oneball_vertices_faces(subdiv=2, radius=0.5)-> Tuple[list, list]:
         faces = new_faces
 
     # numpy配列に
-    vertices = npFloat(verts)
-    tri_indices = npInt(faces)
+    vertices = to_float(verts, use_xp=False)
+    tri_indices = to_int(faces, use_xp=False)
     return vertices, tri_indices
 
 def create_balls(
@@ -112,7 +112,7 @@ def create_boxes(scale=(1, 1, 1)) -> list:
     obj_list = []
 
     # 6面 × 4頂点 = 24頂点（各面に独立UVを持たせる）
-    V = npFloat([
+    V = to_float([
         # -Z face
         [-0.5,-0.5,-0.5], [ 0.5,-0.5,-0.5], [ 0.5, 0.5,-0.5], [-0.5, 0.5,-0.5],
         # +Z face
@@ -149,7 +149,7 @@ def create_boxes(scale=(1, 1, 1)) -> list:
         # elif f == 5:    # +Y face: 外から見て時計回り → 反時計回りに修正
         #     TRI += [o+0, o+3, o+2,  o+0, o+2, o+1]
 
-    TRI = npInt(TRI)
+    TRI = to_int(TRI, use_xp=False)
 
     # ライン（ワイヤーフレーム）。面ごとに4辺（重複OKで簡易）
     LINES = []
@@ -158,7 +158,7 @@ def create_boxes(scale=(1, 1, 1)) -> list:
         o = 4 * f
         for a,b in face_edges:
             LINES += [o+a, o+b]
-    LINES = npInt(LINES)
+    LINES = to_int(LINES, use_xp=False)
 
     color = (1.0, 1.0, 0.2)  # 黄色
 
@@ -184,27 +184,27 @@ def create_axes() -> list:
     """
     axes = [
         Object3D(
-            vertices = npFloat([[0, 0, 0], [1, 0, 0]]),
-            line_indices = npInt([0, 1]),
-            tri_indices = npInt([]),
+            vertices = to_float([[0, 0, 0], [1, 0, 0]], use_xp=False),
+            line_indices = to_int([0, 1], use_xp=False),
+            tri_indices = to_int([], use_xp=False),
             color = (1, 0, 0),
             name = "X",
             name_posi_local = (1.2,0,0),
             is_move = False
         ),
         Object3D(
-            vertices = npFloat([[0, 0, 0], [0, 1, 0]]),
-            line_indices = npInt([0, 1]),
-            tri_indices = npInt([]),
+            vertices = to_float([[0, 0, 0], [0, 1, 0]], use_xp=False),
+            line_indices = to_int([0, 1], use_xp=False),
+            tri_indices = to_int([], use_xp=False),
             color = (0, 1, 0),
             name = "Y",
             name_posi_local = (0,1.2,0),
             is_move = False
         ),
         Object3D(
-            vertices = npFloat([[0, 0, 0], [0, 0, 1]]),
-            line_indices = npInt([0, 1]),
-            tri_indices = npInt([]),
+            vertices = to_float([[0, 0, 0], [0, 0, 1]], use_xp=False),
+            line_indices = to_int([0, 1], use_xp=False),
+            tri_indices = to_int([], use_xp=False),
             color = (0, 0, 1),
             name = "Z",
             name_posi_local = (0,0,1.2),

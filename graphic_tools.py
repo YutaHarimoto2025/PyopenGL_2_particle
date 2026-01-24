@@ -5,7 +5,7 @@ import math
 from OpenGL.GLU import gluUnProject
 import glm
 
-from tools import np, working_dir, npFloat, npInt
+from tools import np, working_dir, to_float, to_int
 
 def compute_normals(vertices:np.ndarray, tri_indices:np.ndarray) -> np.ndarray:
         # 必要に応じて三角形法線から頂点法線を自動計算

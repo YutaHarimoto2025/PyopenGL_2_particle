@@ -3,7 +3,7 @@ import glm
 from typing import Optional, Tuple, Any
 import math
 
-from tools import xp, np, xpFloat, xpInt, npFloat, npInt
+from tools import xp, np, to_float, to_int
 from graphic_tools import compute_normals, GLGeometry, compute_uvs, load_texture, seam_split
 
 class Object3D:
@@ -31,10 +31,10 @@ class Object3D:
     ) -> None:
         
         self.vertices = np.asarray(vertices)
-        self.line_indices = np.asarray(line_indices) if line_indices is not None else np.asarray(npInt([]))
-        self.tri_indices = np.asarray(tri_indices) if tri_indices is not None else np.asarray(npInt([]))
+        self.line_indices = np.asarray(line_indices) if line_indices is not None else np.asarray(to_int([], use_xp=False))
+        self.tri_indices = np.asarray(tri_indices) if tri_indices is not None else np.asarray(to_int([], use_xp=False))
         # print(name, color, posi)
-        self.normals = compute_normals(self.vertices, self.tri_indices.reshape(-1, 3)) if len(self.tri_indices) > 0 else np.asarray(npFloat([])) # 法線ベクトル計算
+        self.normals = compute_normals(self.vertices, self.tri_indices.reshape(-1, 3)) if len(self.tri_indices) > 0 else np.asarray(to_float([], use_xp=False)) # 法線ベクトル計算
 
         # --------- UV（未指定なら共通ロジックで自動生成）----------
         if texture_path is not None: # UVはテクスチャを使うときだけ生成
@@ -48,7 +48,7 @@ class Object3D:
                     # 予防的フォールバック（最低限の0埋め）
                     self.uvs = np.zeros((len(self.vertices), 2), dtype=np.float32)
             else:
-                self.uvs = npFloat(uvs)
+                self.uvs = to_float(uvs, use_xp=False)
                 
             if self.uvs.ndim != 2 or self.uvs.shape[1] != 2:
                 raise ValueError(f"uvs must have shape (N,2), but got {self.uvs.shape}")
